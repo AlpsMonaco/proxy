@@ -100,3 +100,9 @@ func SetBytes(p interface{}, offset int, new []byte) {
 		*(*byte)(unsafe.Pointer(ptr + i)) = new[i]
 	}
 }
+
+// Get any  address of received arg p.
+//
+func GetAddr(p interface{}) uintptr {
+	return (*(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + PtrSize)))
+}
