@@ -117,3 +117,16 @@ func TestBytesToString(t *testing.T) {
 
 	fmt.Println(BytesToString(&bytes))
 }
+
+func TestSetBytes(t *testing.T) {
+	// var b []byte = []byte{32, 0, 0, 0, 64, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0}
+	t1 := TestStruct1{
+		ui32: 32,
+		i32:  64,
+		i64:  128,
+	}
+
+	SetBytes(&t1, 4, []byte{32, 0, 0, 0, 125, 1})
+
+	t.Log(t1)
+}

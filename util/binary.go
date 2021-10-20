@@ -7,6 +7,12 @@ import (
 )
 
 var ErrNeedPointer = errors.New("p must be a pointer")
+var PtrSize uintptr
+
+func init() {
+	var i *byte
+	PtrSize = unsafe.Sizeof(&i)
+}
 
 // p must be a pointer to a struct
 // StructToBinary() will return a pointer to byte slice p covers in the memory.
@@ -23,7 +29,7 @@ func StructToBinary(p interface{}) *[]byte {
 // Only use when you can make sure arguments are safe.
 func ToBinary(p interface{}, size int) *[]byte {
 	return (*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: *(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + 8)),
+		Data: *(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + PtrSize)),
 		Len:  size,
 		Cap:  size,
 	}))
@@ -60,7 +66,7 @@ func BinaryToStruct(p interface{}, bPtr *[]byte) {
 // much faster than BinaryToStruct
 func ToStruct(p interface{}, bPtr *[]byte, size int) {
 	b := *bPtr
-	ptr := (*(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + 8)))
+	ptr := (*(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + PtrSize)))
 	for i := 0; i < size; i++ {
 		*(*byte)(unsafe.Pointer(uintptr(ptr) + uintptr(i))) = b[i]
 	}
@@ -68,7 +74,7 @@ func ToStruct(p interface{}, bPtr *[]byte, size int) {
 
 // p is a pointer to a byte array,not a slice.
 func BytesToString(p interface{}) string {
-	ptr := (*(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + 8)))
+	ptr := (*(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + PtrSize)))
 	var size uintptr
 
 	for {
@@ -83,4 +89,14 @@ func BytesToString(p interface{}) string {
 		Len:  int(size),
 		Cap:  int(size),
 	})))
+}
+
+// SetBytes set data from address of p to address + len(new) to data new holds.
+func SetBytes(p interface{}, offset int, new []byte) {
+	ptr := (*(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + PtrSize))) + uintptr(offset)
+	var size uintptr = uintptr(len(new))
+	var i uintptr
+	for i = 0; i < size; i++ {
+		*(*byte)(unsafe.Pointer(ptr + i)) = new[i]
+	}
 }
