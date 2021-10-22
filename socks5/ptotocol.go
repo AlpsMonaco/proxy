@@ -69,6 +69,40 @@ type Socks5_RequestMessage struct {
 	va    [256]byte
 }
 
+func (rm *Socks5_RequestMessage) GetHost() string {
+	var s string
+	switch rm.Atype {
+	case SOCKS5_ATYPE_IPV4:
+		for i := 0; i < 4; i++ {
+			s = s + util.ByteToString(rm.va[i]) + "."
+		}
+		return s[:len(s)-1]
+	case SOCKS5_ATYPE_DOMAIN:
+		s = string(rm.va[1 : rm.va[0]+1])
+		return s
+	case SOCKS5_ATYPE_IPV6:
+		return ""
+	default:
+		return ""
+	}
+}
+
+func (rm *Socks5_RequestMessage) GetPort() int {
+	var offset byte
+	switch rm.Atype {
+	case SOCKS5_ATYPE_IPV4:
+		offset = 4
+	case SOCKS5_ATYPE_DOMAIN:
+		offset = rm.va[0] + 1
+	case SOCKS5_ATYPE_IPV6:
+		offset = 16
+	default:
+		return 0
+	}
+
+	return (int(rm.va[offset]) << 8) + int(rm.va[offset+1])
+}
+
 const (
 	SOCKS5_REP_SUCCESS byte = iota
 	SOCKS5_REP_CONNECTION_FAILED
