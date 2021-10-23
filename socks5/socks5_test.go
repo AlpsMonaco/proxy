@@ -1,13 +1,15 @@
 package socks5
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"runtime"
-	"strconv"
 	"testing"
 	"time"
+
+	"github.com/AlpsMonaco/proxy/util"
 )
 
 var testptr *testing.T
@@ -91,96 +93,110 @@ HOST: www.google.com
 
 }
 
-func TestReceive(t *testing.T) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			t.Log(err)
-		}
-	}()
-	assertPointer(t)
+func gc() {
+	for {
+		time.Sleep(10 * time.Second)
+		runtime.GC()
+	}
+}
 
-	var listener net.Listener
-	var err error
-	listener, err = net.Listen("tcp", "127.0.0.1:25250")
+func socks5ServerSide(t *testing.T) {
+	const port = 7899
+	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	assert(err)
-	t.Log(1)
+
+	go gc()
 
 	for {
-		conn, err := listener.Accept()
+		conn, err := l.Accept()
 		assert(err)
 
-		func(conn net.Conn) {
-			defer func() {
-				err := recover()
-				if err != nil {
-					t.Log(err)
-				}
-			}()
+		go func(conn net.Conn) {
+			var a util.Alloctor
+			a.Alloc(264)
 
-			var buf []byte = make([]byte, 1024)
-			_, err = conn.Read(buf)
+			_, err := conn.Read(a.GetBytes())
 			assert(err)
-			t.Log(buf)
-			runtime.GC()
-
-			verMsg := DecodeVersionMessage(&buf)
-			if verMsg.Ver != SOCKS5_VERSION {
-				t.Fatal("verMsg.Ver != SOCKS5_VERSION")
+			vMsg := (*Socks5_VersionMessage)(a.GetPointer())
+			if vMsg.Ver != SOCKS5_VERSION {
+				assert(errors.New("vMsg.Ver != SOCKS5_VERSION"))
 			}
-			t.Log(verMsg)
+			// t.Log(vMsg)
 
-			var sMsg Socks5_SelectionMessage
-			sMsg.Ver = SOCKS5_VERSION
+			sMsg := (*Socks5_SelectionMessage)(a.GetPointer())
 			sMsg.Method = 0x00
-
-			bPtr := EncodeSelectionMessage(&sMsg)
-			_, err = conn.Write(*bPtr)
+			sMsg.Ver = SOCKS5_VERSION
+			_, err = conn.Write(a.GetByteSize(2))
+			// t.Log(a.GetBytes())
 			assert(err)
 
-			_, err = conn.Read(buf)
+			_, err = conn.Read(a.GetBytes())
 			assert(err)
-			reqMsg := DecodeRequestMessage(&buf)
-			t.Log(reqMsg.GetHost())
-			t.Log(reqMsg.GetPort())
+			reqMsg := (*Socks5_RequestMessage)(a.GetPointer())
+			addr := reqMsg.GetHost()
+			port := reqMsg.GetPort()
 
-			var respMsg = Socks5_ResponseMessage{
-				Ver:   SOCKS5_VERSION,
-				Rep:   SOCKS5_REP_SUCCESS,
-				Rsv:   0,
-				Atype: SOCKS5_ATYPE_IPV4,
-				va:    [256]byte{127, 0, 0, 1, 0x62, 0xa2},
-			}
-
-			bPtr = EncodeResponseMessage(&respMsg)
-			_, err = conn.Write(*bPtr)
+			respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
+			respMsg.Ver = 0x05
+			respMsg.Rep = 0x00
+			respMsg.Rsv = 0x00
+			respMsg.Atype = 0x01
+			respMsg.va[0] = 127
+			respMsg.va[1] = 0
+			respMsg.va[2] = 0
+			respMsg.va[3] = 1
+			respMsg.va[4] = 0x1E
+			respMsg.va[5] = 0xDB
+			_, err = conn.Write(a.GetByteSize(10))
+			// t.Log(a.GetBytes())
 			assert(err)
+			Proxy(addr, port, conn)
 
-			host, err := net.DialTimeout("tcp", reqMsg.GetHost()+":"+strconv.Itoa(reqMsg.GetPort()), 1*time.Second)
-			if err != nil {
-				return
-			}
-
-			go func() {
-				for {
-					_, err = io.Copy(conn, host)
-					if err != nil {
-						assert(err)
-					}
-				}
-			}()
-
-			go func() {
-				for {
-					_, err = io.Copy(host, conn)
-					if err != nil {
-						assert(err)
-					}
-				}
-			}()
 		}(conn)
 	}
+}
 
-	time.Sleep(10 * time.Second)
+func Proxy(addr string, port int, conn net.Conn) {
+	dst, err := net.Dial("tcp", fmt.Sprintf("%s:%d", addr, port))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
+	go func() {
+		defer func() {
+			dst.Close()
+			if err := recover(); err != nil {
+				fmt.Println(err)
+			}
+		}()
+		for {
+			if n, err := io.Copy(dst, conn); err != nil || n == 0 {
+				fmt.Println(err)
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer func() {
+			conn.Close()
+			if err := recover(); err != nil {
+				fmt.Println(err)
+			}
+		}()
+
+		for {
+			if n, err := io.Copy(conn, dst); err != nil || n == 0 {
+				fmt.Println(err)
+				return
+			}
+		}
+	}()
+}
+
+func TestReceive(t *testing.T) {
+	assertPointer(t)
+
+	socks5ServerSide(t)
 }
