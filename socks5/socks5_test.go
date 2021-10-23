@@ -1,9 +1,10 @@
 package socks5
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"reflect"
 	"runtime"
@@ -11,6 +12,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/AlpsMonaco/proxy/forward"
 	"github.com/AlpsMonaco/proxy/util"
 )
 
@@ -27,6 +29,9 @@ func assertPointer(t *testing.T) {
 }
 
 func TestConnection(t *testing.T) {
+	var buffer bytes.Buffer
+	binary.Write(&buffer, binary.LittleEndian, uint16(80))
+	t.Log(buffer.Bytes())
 	assertPointer(t)
 
 	var conn net.Conn
@@ -74,6 +79,10 @@ func TestConnection(t *testing.T) {
 
 	_, err = conn.Read(a.GetBytes())
 	assert(err)
+
+	// 7890
+	// ox1E oxD2
+	// 30 210
 
 	respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
 	t.Log(respMsg)
@@ -161,40 +170,12 @@ func socks5ServerSide(t *testing.T) {
 func Proxy(addr string, port int, conn net.Conn) {
 	dst, err := net.Dial("tcp", fmt.Sprintf("%s:%d", addr, port))
 	if err != nil {
-		fmt.Println(err)
+		// fmt.Println(err)
 		return
 	}
 
-	go func() {
-		defer func() {
-			dst.Close()
-			if err := recover(); err != nil {
-				fmt.Println(err)
-			}
-		}()
-		for {
-			if n, err := io.Copy(dst, conn); err != nil || n == 0 {
-				fmt.Println(err)
-				return
-			}
-		}
-	}()
+	go forward.NewForward(dst, conn, func(e error) { fmt.Println(e) }).Start()
 
-	go func() {
-		defer func() {
-			conn.Close()
-			if err := recover(); err != nil {
-				fmt.Println(err)
-			}
-		}()
-
-		for {
-			if n, err := io.Copy(conn, dst); err != nil || n == 0 {
-				fmt.Println(err)
-				return
-			}
-		}
-	}()
 }
 
 func TestReceive(t *testing.T) {
