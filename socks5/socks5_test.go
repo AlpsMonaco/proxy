@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/AlpsMonaco/proxy/util"
 )
@@ -29,31 +31,33 @@ func TestConnection(t *testing.T) {
 
 	var conn net.Conn
 	var err error
-	var buf = make([]byte, 256)
+	// var buf = make([]byte, 256)
 
 	conn, err = net.Dial("tcp", "127.0.0.1:7890")
 	assert(err)
 
-	var vMsg Socks5_VersionMessage
-	vMsg.Ver = 0x05
-	vMsg.SetMethod(0x00)
+	var a util.Alloctor
+	a.Alloc(264)
 
-	bPtr := EncodeVersionMessage(&vMsg)
-	_, err = conn.Write(*bPtr)
+	vMsg := (*Socks5_VersionMessage)(a.GetPointer())
+	vMsg.Ver = SOCKS5_VERSION
+	vMsg.NumMethod = 0x01
+	vMsg.va[0] = SOCKS5_METHOD_NO_AUTH
+	_, err = conn.Write(a.GetByteSize(3))
+	assert(err)
+	_, err = conn.Read(a.GetBytes())
 	assert(err)
 
-	_, err = conn.Read(buf)
-	assert(err)
-
-	sMsg := DecodeSelectionMessage(&buf)
-	t.Log(sMsg)
-
-	var reqMsg Socks5_RequestMessage = Socks5_RequestMessage{
-		Ver:   SOCKS5_VERSION,
-		Cmd:   SOCKS5_CMD_CONNECT,
-		Rsv:   0,
-		Atype: SOCKS5_ATYPE_DOMAIN,
+	sMsg := (*Socks5_SelectionMessage)(a.GetPointer())
+	if sMsg.Ver != SOCKS5_VERSION || sMsg.Method != SOCKS5_METHOD_NO_AUTH {
+		assert(errors.New("sMsg.Ver != SOCKS5_VERSION || sMsg.Method != SOCKS5_METHOD_NO_AUTH{"))
 	}
+
+	reqMsg := (*Socks5_RequestMessage)(a.GetPointer())
+	reqMsg.Ver = SOCKS5_VERSION
+	reqMsg.Cmd = SOCKS5_CMD_CONNECT
+	reqMsg.Rsv = 0
+	reqMsg.Atype = SOCKS5_ATYPE_DOMAIN
 
 	domain := "www.google.com"
 	domainSize := len(domain)
@@ -65,14 +69,13 @@ func TestConnection(t *testing.T) {
 	reqMsg.va[domainSize+1] = 0
 	reqMsg.va[domainSize+2] = 80
 
-	bPtr = EncodeRequestMessage(&reqMsg)
-	_, err = conn.Write(*bPtr)
+	_, err = conn.Write(a.GetByteSize(4 + domainSize + 1 + 2))
 	assert(err)
 
-	_, err = conn.Read(buf)
+	_, err = conn.Read(a.GetBytes())
 	assert(err)
 
-	respMsg := DecodeResponseMessage(&buf)
+	respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
 	t.Log(respMsg)
 
 	conn.Write([]byte(`GET / HTTP/1.1
@@ -81,16 +84,15 @@ HOST: www.google.com
 `))
 
 	for {
-		n, err := conn.Read(buf)
-		fmt.Print(string(buf))
+		n, err := conn.Read(a.GetBytes())
+		fmt.Print(string(a.GetBytes()))
 		if n < 256 {
 			break
 		}
 		assert(err)
 	}
 
-	t.Log(string(buf))
-
+	t.Log(a.GetBytes())
 }
 
 func gc() {
@@ -199,4 +201,20 @@ func TestReceive(t *testing.T) {
 	assertPointer(t)
 
 	socks5ServerSide(t)
+}
+
+func TestByte(t *testing.T) {
+	a := make([]byte, 10)
+	a[0] = 1
+	a[1] = 1
+	a[2] = 2
+	a[3] = 3
+
+	b := a[0:2]
+	t.Logf("0x%08x\n", uintptr(unsafe.Pointer(&a[0])))
+	t.Logf("0x%08x\n", uintptr(unsafe.Pointer(&b[0])))
+
+	t.Log(*(*reflect.SliceHeader)(unsafe.Pointer(&a)))
+	t.Log(*(*reflect.SliceHeader)(unsafe.Pointer(&b)))
+
 }
