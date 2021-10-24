@@ -7,7 +7,6 @@ type TCPForward struct {
 	ListenAddr string
 	// target host addr
 	HostAddr string
-
 	// Error Handle
 	OnError func(error)
 }

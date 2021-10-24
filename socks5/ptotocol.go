@@ -1,9 +1,6 @@
 package socks5
 
 import (
-	"reflect"
-	"unsafe"
-
 	"github.com/AlpsMonaco/proxy/util"
 )
 
@@ -24,21 +21,8 @@ type Socks5_VersionMessage struct {
 	va        [256]byte
 }
 
-func (vm *Socks5_VersionMessage) GetMethods() []byte {
-	if vm.NumMethod == 0 {
-		return nil
-	}
-
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: uintptr(unsafe.Pointer(vm)) + unsafe.Offsetof(vm.va),
-		Len:  int(vm.NumMethod),
-		Cap:  int(vm.NumMethod),
-	}))
-}
-
-func (vm *Socks5_VersionMessage) SetMethod(methods ...byte) {
-	vm.NumMethod = byte(len(methods))
-	util.SetBytes(vm, int(unsafe.Offsetof(vm.va)), methods)
+func (vm *Socks5_VersionMessage) GetSize() int {
+	return 2 + int(vm.NumMethod)
 }
 
 type Socks5_SelectionMessage struct {
