@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"reflect"
 	"runtime"
 	"testing"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/AlpsMonaco/proxy/forward"
 	"github.com/AlpsMonaco/proxy/util"
+
+	_ "net/http/pprof"
 )
 
 var testptr *testing.T
@@ -112,6 +115,8 @@ func gc() {
 }
 
 func socks5ServerSide(t *testing.T) {
+	go http.ListenAndServe(":8888", nil)
+
 	const port = 7899
 	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	assert(err)

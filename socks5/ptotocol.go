@@ -53,6 +53,21 @@ type Socks5_RequestMessage struct {
 	va    [256]byte
 }
 
+func (rm *Socks5_RequestMessage) GetSize() int {
+	var i int = 4 + 2
+	switch rm.Atype {
+	case SOCKS5_ATYPE_IPV4:
+		return i + 4
+	case SOCKS5_ATYPE_DOMAIN:
+		return int(rm.va[0]+1) + i
+	case SOCKS5_ATYPE_IPV6:
+		return i + 16
+	default:
+		return 0
+	}
+
+}
+
 func (rm *Socks5_RequestMessage) GetHost() string {
 	var s string
 	switch rm.Atype {

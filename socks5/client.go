@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"reflect"
 	"time"
+	"unsafe"
 
 	"github.com/AlpsMonaco/proxy/util"
 )
@@ -22,15 +24,26 @@ type Client struct {
 }
 
 func (c *Client) Connect(addr string, port int) error {
+	var err error
 	var a util.Alloctor
 	a.Alloc(264)
 
-	if err := c.dial(&a); err != nil {
+	if err = c.dial(&a); err != nil {
 		return err
 	}
 
 	fillRequestMessage((*Socks5_RequestMessage)(a.GetPointer()), SOCKS5_CMD_CONNECT, addr, port)
+	_, err = c.Write(a.GetByteSize((*Socks5_RequestMessage)(a.GetPointer()).GetSize()))
+	if err != nil {
+		return err
+	}
 
+	_, err = c.Read(a.GetBytes())
+	if err != nil {
+		return err
+	}
+
+	parseResponseMessage((*Socks5_ResponseMessage)(a.GetPointer()))
 	return nil
 }
 
@@ -99,8 +112,20 @@ func fillRequestMessage(vMsg *Socks5_RequestMessage, sockcmd byte, addr string, 
 		}
 	} else {
 		// ipv4
+		util.IPV4AddrToByte(addr, (*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+			Data: uintptr(unsafe.Pointer(&vMsg.va[0])),
+			Len:  4,
+			Cap:  4,
+		})))
+		i = i + 4
 	}
 
+	vMsg.va[i] = byte(port & 0x0F)
+	vMsg.va[i+1] = byte(port & 0xF0)
+}
+
+func parseResponseMessage(rMsg *Socks5_ResponseMessage) {
+	fmt.Println(rMsg)
 }
 
 func isDomain(s string) bool {

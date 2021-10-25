@@ -42,6 +42,7 @@ func (f *Forward) Start() {
 			break
 		}
 	}
+	f.Stop()
 }
 
 func (f *Forward) Stop() {
