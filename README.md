@@ -16,5 +16,7 @@
 ### socks5
 
 - Socks5 client complete. Usable.
-- Socks5 server protocol complete. Server struct not finished.
-- 
+
+- Socks5 server complete. Usable.
+
+  

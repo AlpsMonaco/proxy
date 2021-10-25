@@ -11,8 +11,9 @@ import (
 	"github.com/AlpsMonaco/proxy/util"
 )
 
-var ErrSocks5VersionNotSupport = errors.New("Socks5 version not supported")
-var ErrSocks5MethodNotSupport = errors.New("Socks5 method not supported")
+var ErrSocks5VersionNotSupported = errors.New("Socks5 version not supported")
+var ErrSocks5MethodNotSupported = errors.New("Socks5 method not supported")
+var ErrSocks5CommandNotSupported = errors.New("Socks5 command not supported")
 
 type Client struct {
 	Address  string
@@ -21,6 +22,16 @@ type Client struct {
 	User     string
 	Password string
 	conn     net.Conn
+}
+
+func (c *Client) GetConn() net.Conn {
+	return c.conn
+}
+func (c *Client) GetLocalAddr() string {
+	return c.conn.LocalAddr().String()
+}
+func (c *Client) GetRemoteAddr() string {
+	return c.conn.RemoteAddr().String()
 }
 
 func (c *Client) Connect(addr string, port int) error {
@@ -88,11 +99,11 @@ func fillVersionMessage(c *Client, vMsg *Socks5_VersionMessage) {
 
 func parseSelectionMessage(vMsg *Socks5_SelectionMessage) error {
 	if vMsg.Ver != SOCKS5_VERSION {
-		return ErrSocks5VersionNotSupport
+		return ErrSocks5VersionNotSupported
 	}
 
 	if vMsg.Method >= SOCKS5_METHOD_NOT_SUPPORT {
-		return ErrSocks5MethodNotSupport
+		return ErrSocks5MethodNotSupported
 	}
 
 	return nil

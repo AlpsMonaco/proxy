@@ -1,6 +1,8 @@
 package util
 
-import "unsafe"
+import (
+	"unsafe"
+)
 
 type Alloctor struct {
 	b []byte
