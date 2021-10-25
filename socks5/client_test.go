@@ -18,11 +18,11 @@ func TestClient(t *testing.T) {
 	var err error
 	var c = &Client{
 		Address: "127.0.0.1",
-		Port:    10801,
+		Port:    7890,
 		Timeout: 0,
 	}
 
-	err = c.Connect("www.google.com", 80)
+	err = c.Connect("8.134.75.115", 80)
 	assert(err)
 
 	_, err = c.Write([]byte(`GET / HTTP/1.1

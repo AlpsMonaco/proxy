@@ -112,6 +112,7 @@ func fillRequestMessage(vMsg *Socks5_RequestMessage, sockcmd byte, addr string, 
 		}
 	} else {
 		// ipv4
+		vMsg.Atype = SOCKS5_ATYPE_IPV4
 		util.IPV4AddrToByte(addr, (*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 			Data: uintptr(unsafe.Pointer(&vMsg.va[0])),
 			Len:  4,
