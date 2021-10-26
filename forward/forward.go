@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-var ErrNetEOF = errors.New("ErrNetEOF")
+var ErrNetClosed = errors.New("ErrNetClosed")
 
 type Forward struct {
 	SrcConn net.Conn
@@ -70,7 +70,7 @@ func communicate(src net.Conn, dst net.Conn) error {
 			return err
 		}
 		if n == 0 {
-			return ErrNetEOF
+			return ErrNetClosed
 		}
 	}
 }
