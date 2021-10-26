@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/AlpsMonaco/proxy/socks5"
 	"net/http"
 	_ "net/http/pprof"
+
+	"github.com/AlpsMonaco/proxy/socks5"
 )
 
 func main() {
