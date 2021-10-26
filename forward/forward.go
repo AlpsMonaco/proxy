@@ -6,19 +6,19 @@ import (
 	"net"
 )
 
-var ErrNetEOF = errors.New("ErrNetEof")
+var ErrNetEOF = errors.New("ErrNetEOF")
 
 type Forward struct {
-	src       net.Conn
-	dst       net.Conn
-	errHandle func(error)
+	SrcConn net.Conn
+	DstConn net.Conn
+	OnError func(error)
 }
 
 func NewForward(dst net.Conn, src net.Conn, onError func(error)) *Forward {
 	return &Forward{
-		src:       src,
-		dst:       dst,
-		errHandle: onError,
+		SrcConn: src,
+		DstConn: dst,
+		OnError: onError,
 	}
 }
 
@@ -26,7 +26,7 @@ func (f *Forward) Start() {
 	go func() {
 		var err error
 		for {
-			err = communicate(f.dst, f.src)
+			err = communicate(f.DstConn, f.SrcConn)
 			if err != nil {
 				f.onError(err)
 				break
@@ -36,7 +36,7 @@ func (f *Forward) Start() {
 
 	var err error
 	for {
-		err = communicate(f.src, f.dst)
+		err = communicate(f.SrcConn, f.DstConn)
 		if err != nil {
 			f.onError(err)
 			break
@@ -46,25 +46,17 @@ func (f *Forward) Start() {
 }
 
 func (f *Forward) Stop() {
-	var err error
-	err = f.src.Close()
-	if err != nil {
-		f.onError(err)
-	}
-
-	err = f.dst.Close()
-	if err != nil {
-		f.onError(err)
-	}
+	closeConn(f.SrcConn)
+	closeConn(f.DstConn)
 }
 
-func (f *Forward) ErrHandle(cb func(error)) {
-	f.errHandle = cb
+func (f *Forward) SetErrHandle(cb func(error)) {
+	f.OnError = cb
 }
 
 func (f *Forward) onError(err error) {
-	if f.errHandle != nil {
-		f.errHandle(err)
+	if f.OnError != nil {
+		f.OnError(err)
 	}
 }
 
@@ -80,5 +72,12 @@ func communicate(src net.Conn, dst net.Conn) error {
 		if n == 0 {
 			return ErrNetEOF
 		}
+	}
+}
+
+func closeConn(conn net.Conn) {
+	err := conn.Close()
+	if err != nil {
+		_ = conn.Close()
 	}
 }
