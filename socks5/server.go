@@ -21,10 +21,11 @@ type Server struct {
 }
 
 type ClientConn struct {
-	Addr   string
-	Port   int
-	Remote net.Conn
-	Client net.Conn
+	Addr      string
+	Port      int
+	Remote    net.Conn
+	Client    net.Conn
+	Allocator *util.Alloctor
 }
 
 func DefaultOnClientConnect(c *ClientConn) {
@@ -45,8 +46,32 @@ func (s *Server) Listen() error {
 	}
 
 	if s.OnClientConnect == nil {
-		s.OnClientConnect = func(c *ClientConn) {
-			forward.NewForward(c.Remote, c.Client, s.OnError).Start()
+		s.OnClientConnect = func(clientConn *ClientConn) {
+			a := *clientConn.Allocator
+			c := clientConn.Client
+			respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
+			fillResponseMessage(respMsg, s)
+			clientConn.Remote, err = net.Dial("tcp", fmt.Sprintf("%s:%d", clientConn.Addr, clientConn.Port))
+			if err != nil {
+				s.OnError(err)
+				respMsg.Rep = SOCKS5_REP_CONNECTION_FAILED
+				_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
+				if err != nil {
+					s.OnError(err)
+				}
+				closeConn(c)
+				return
+			}
+
+			respMsg.Rep = SOCKS5_REP_SUCCESS
+			_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
+			if err != nil {
+				s.OnError(err)
+				closeConn(c)
+				return
+			}
+
+			forward.NewForward(clientConn.Remote, clientConn.Client, s.OnError).Start()
 		}
 	}
 
@@ -108,9 +133,10 @@ func (s *Server) newConn(c net.Conn) {
 	}
 
 	var clientConn = ClientConn{
-		Addr:   rMsg.GetHost(),
-		Port:   rMsg.GetPort(),
-		Client: c,
+		Addr:      rMsg.GetHost(),
+		Port:      rMsg.GetPort(),
+		Client:    c,
+		Allocator: &a,
 	}
 
 	if !s.BeforeClientConnect(&clientConn) {
@@ -118,29 +144,30 @@ func (s *Server) newConn(c net.Conn) {
 		return
 	}
 
-	respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
-	fillResponseMessage(respMsg, s)
-	clientConn.Remote, err = net.Dial("tcp", fmt.Sprintf("%s:%d", clientConn.Addr, clientConn.Port))
-	if err != nil {
-		s.OnError(err)
-		respMsg.Rep = SOCKS5_REP_CONNECTION_FAILED
-		_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
-		if err != nil {
-			s.OnError(err)
-		}
-		closeConn(c)
-		return
-	}
-
-	respMsg.Rep = SOCKS5_REP_SUCCESS
-	_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
-	if err != nil {
-		s.OnError(err)
-		closeConn(c)
-		return
-	}
-
 	s.OnClientConnect(&clientConn)
+
+	// respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
+	// fillResponseMessage(respMsg, s)
+	// clientConn.Remote, err = net.Dial("tcp", fmt.Sprintf("%s:%d", clientConn.Addr, clientConn.Port))
+	// if err != nil {
+	// 	s.OnError(err)
+	// 	respMsg.Rep = SOCKS5_REP_CONNECTION_FAILED
+	// 	_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
+	// 	if err != nil {
+	// 		s.OnError(err)
+	// 	}
+	// 	closeConn(c)
+	// 	return
+	// }
+
+	// respMsg.Rep = SOCKS5_REP_SUCCESS
+	// _, err = c.Write(a.GetByteSize(respMsg.GetSize()))
+	// if err != nil {
+	// 	s.OnError(err)
+	// 	closeConn(c)
+	// 	return
+	// }
+
 }
 
 func parseVersionMessage(vMsg *Socks5_VersionMessage) error {

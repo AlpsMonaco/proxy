@@ -2,49 +2,36 @@ package main
 
 import (
 	"fmt"
-	"time"
 
+	"github.com/AlpsMonaco/proxy/socks5"
 	"github.com/AlpsMonaco/proxy/vpn"
 )
 
 func main() {
 	go ServerSide()
-	time.Sleep(1 * time.Second)
-	var c = vpn.Client{
-		IP:       ServerIP,
-		Port:     Port,
-		Password: key,
-	}
 
-	if err := c.Connect("119.91.84.155", 80); err != nil {
-		panic(err)
-	}
+	go func() {
+		sockServer := socks5.Server{
+			Address: ServerIP,
+			Port:    SockPort,
+			OnClientConnect: func(c *socks5.ClientConn) {
+				// rm :=(*vpn.RequestMessage)(c.Allocator.GetPointer())
 
-	time.Sleep(1 * time.Second)
+			},
+			OnError: func(err error) { fmt.Println(err) },
+		}
 
-	_, err := c.Write([]byte(`GET / HTTP/1.1
-Host: www.baidu.com
-
-`))
-
-	if err != nil {
-		panic(err)
-	}
-
-	buf := make([]byte, 1024)
-	_, err = c.Read(buf)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(buf)
-	fmt.Println(string(buf))
-
+		if err := sockServer.Listen(); err != nil {
+			panic(err)
+		}
+	}()
 }
 
 const key = "123456"
 const ServerIP = "127.0.0.1"
 const Port = 61124
+
+const SockPort = 7899
 
 func ServerSide() {
 	var s = vpn.Server{
