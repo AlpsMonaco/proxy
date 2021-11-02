@@ -2,10 +2,11 @@ package socks5
 
 import (
 	"fmt"
-	"github.com/AlpsMonaco/proxy/forward"
 	"net"
 	"reflect"
 	"unsafe"
+
+	"github.com/AlpsMonaco/proxy/forward"
 
 	"github.com/AlpsMonaco/proxy/util"
 )
@@ -72,12 +73,14 @@ func (s *Server) newConn(c net.Conn) {
 	_, err = c.Read(a.GetBytes())
 	if err != nil {
 		s.onError(err)
+		closeConn(c)
 		return
 	}
 
 	err = parseVersionMessage((*Socks5_VersionMessage)(a.GetPointer()))
 	if err != nil {
 		s.onError(err)
+		closeConn(c)
 		return
 	}
 
@@ -85,12 +88,14 @@ func (s *Server) newConn(c net.Conn) {
 	_, err = c.Write(a.GetByteSize(2))
 	if err != nil {
 		s.onError(err)
+		closeConn(c)
 		return
 	}
 
 	_, err = c.Read(a.GetBytes())
 	if err != nil {
 		s.onError(err)
+		closeConn(c)
 		return
 	}
 
@@ -98,6 +103,7 @@ func (s *Server) newConn(c net.Conn) {
 	err = ParseRequestMessage(rMsg)
 	if err != nil {
 		s.onError(err)
+		closeConn(c)
 		return
 	}
 
@@ -108,7 +114,7 @@ func (s *Server) newConn(c net.Conn) {
 	}
 
 	if !s.BeforeClientConnect(&clientConn) {
-		_ = c.Close()
+		closeConn(c)
 		return
 	}
 
@@ -122,7 +128,7 @@ func (s *Server) newConn(c net.Conn) {
 		if err != nil {
 			s.OnError(err)
 		}
-		_ = c.Close()
+		closeConn(c)
 		return
 	}
 
@@ -130,7 +136,7 @@ func (s *Server) newConn(c net.Conn) {
 	_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
 	if err != nil {
 		s.OnError(err)
-		_ = c.Close()
+		closeConn(c)
 		return
 	}
 
@@ -180,4 +186,11 @@ func fillResponseMessage(respMsg *Socks5_ResponseMessage, s *Server) {
 	}
 	respMsg.va[i] = byte(s.Port & 0x0F)
 	respMsg.va[i+1] = byte(s.Port & 0xF0)
+}
+
+func closeConn(c net.Conn) {
+	err := c.Close()
+	if err != nil {
+		_ = c.Close()
+	}
 }

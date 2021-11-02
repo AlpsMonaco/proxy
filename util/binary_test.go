@@ -130,3 +130,13 @@ func TestSetBytes(t *testing.T) {
 
 	t.Log(t1)
 }
+
+func TestEndian(t *testing.T) {
+	var port uint16 = 38
+	fmt.Printf("%x", port)
+	fmt.Printf("0x%02x %08b\n", port>>8, port>>8)
+	fmt.Printf("0x%02x %08b\n", port<<8, port<<8)
+	fmt.Printf("0x%02x %08b\n", port&0xFF00, port&0xFF00)
+	fmt.Printf("0x%02x %08b\n", port&0x00FF, port&0x00FF)
+
+}
