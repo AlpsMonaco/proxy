@@ -16,6 +16,11 @@ type RequestMessage struct {
 	VA    [256]byte
 }
 
+type ResponseMessage struct {
+	Ver          byte
+	ResponseCode byte
+}
+
 const (
 	_ byte = iota
 	AType_IPV4

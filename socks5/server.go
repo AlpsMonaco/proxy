@@ -11,13 +11,17 @@ import (
 	"github.com/AlpsMonaco/proxy/util"
 )
 
+type uptr = unsafe.Pointer
+
 type Server struct {
-	Address             string
-	Port                int
-	BeforeClientConnect func(*ClientConn) bool
-	OnClientConnect     func(*ClientConn)
-	OnError             func(error)
-	listener            net.Listener
+	Address string
+	Port    int
+	OnError func(error)
+	// isAllow Client Request
+	OnClientRequest func(rm *Socks5_RequestMessage) error
+	OnConnectRemote func(host string, port int) (net.Conn, error)
+
+	listener net.Listener
 }
 
 type ClientConn struct {
@@ -39,39 +43,22 @@ func (s *Server) Listen() error {
 		return err
 	}
 
-	if s.BeforeClientConnect == nil {
-		s.BeforeClientConnect = func(client *ClientConn) bool {
-			return true
+	if s.OnClientRequest == nil {
+		s.OnClientRequest = func(rm *Socks5_RequestMessage) error {
+			if rm.Ver != SOCKS5_VERSION {
+				return ErrSocks5VersionNotSupported
+			}
+			if rm.Cmd != SOCKS5_CMD_CONNECT {
+				return ErrSocks5CommandNotSupported
+			}
+			return nil
 		}
 	}
 
-	if s.OnClientConnect == nil {
-		s.OnClientConnect = func(clientConn *ClientConn) {
-			a := *clientConn.Allocator
-			c := clientConn.Client
-			respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
-			fillResponseMessage(respMsg, s)
-			clientConn.Remote, err = net.Dial("tcp", fmt.Sprintf("%s:%d", clientConn.Addr, clientConn.Port))
-			if err != nil {
-				s.OnError(err)
-				respMsg.Rep = SOCKS5_REP_CONNECTION_FAILED
-				_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
-				if err != nil {
-					s.OnError(err)
-				}
-				closeConn(c)
-				return
-			}
-
-			respMsg.Rep = SOCKS5_REP_SUCCESS
-			_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
-			if err != nil {
-				s.OnError(err)
-				closeConn(c)
-				return
-			}
-
-			forward.NewForward(clientConn.Remote, clientConn.Client, s.OnError).Start()
+	if s.OnConnectRemote == nil {
+		s.OnConnectRemote = func(host string, port int) (net.Conn, error) {
+			conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+			return conn, err
 		}
 	}
 
@@ -125,49 +112,30 @@ func (s *Server) newConn(c net.Conn) {
 	}
 
 	rMsg := (*Socks5_RequestMessage)(a.GetPointer())
-	err = ParseRequestMessage(rMsg)
+	err = s.OnClientRequest(rMsg)
 	if err != nil {
 		s.onError(err)
 		closeConn(c)
 		return
 	}
 
-	var clientConn = ClientConn{
-		Addr:      rMsg.GetHost(),
-		Port:      rMsg.GetPort(),
-		Client:    c,
-		Allocator: &a,
-	}
-
-	if !s.BeforeClientConnect(&clientConn) {
+	remote, err := s.OnConnectRemote(rMsg.GetHost(), rMsg.GetPort())
+	if err != nil {
+		s.onError(err)
 		closeConn(c)
 		return
 	}
 
-	s.OnClientConnect(&clientConn)
+	respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
+	fillResponseMessage(respMsg, s)
+	_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
+	if err != nil {
+		s.onError(err)
+		closeConn(c)
+		return
+	}
 
-	// respMsg := (*Socks5_ResponseMessage)(a.GetPointer())
-	// fillResponseMessage(respMsg, s)
-	// clientConn.Remote, err = net.Dial("tcp", fmt.Sprintf("%s:%d", clientConn.Addr, clientConn.Port))
-	// if err != nil {
-	// 	s.OnError(err)
-	// 	respMsg.Rep = SOCKS5_REP_CONNECTION_FAILED
-	// 	_, err = c.Write(a.GetByteSize(respMsg.GetSize()))
-	// 	if err != nil {
-	// 		s.OnError(err)
-	// 	}
-	// 	closeConn(c)
-	// 	return
-	// }
-
-	// respMsg.Rep = SOCKS5_REP_SUCCESS
-	// _, err = c.Write(a.GetByteSize(respMsg.GetSize()))
-	// if err != nil {
-	// 	s.OnError(err)
-	// 	closeConn(c)
-	// 	return
-	// }
-
+	forward.NewForward(c, remote, s.onError).Start()
 }
 
 func parseVersionMessage(vMsg *Socks5_VersionMessage) error {
@@ -195,6 +163,7 @@ func ParseRequestMessage(rMsg *Socks5_RequestMessage) error {
 func fillResponseMessage(respMsg *Socks5_ResponseMessage, s *Server) {
 	respMsg.Ver = SOCKS5_VERSION
 	respMsg.Rsv = 0x00
+	respMsg.Rep = SOCKS5_REP_SUCCESS
 	var i byte
 	if isDomain(s.Address) {
 		respMsg.Atype = SOCKS5_ATYPE_DOMAIN
@@ -211,8 +180,8 @@ func fillResponseMessage(respMsg *Socks5_ResponseMessage, s *Server) {
 		})))
 		i = i + 4
 	}
-	respMsg.va[i] = byte(s.Port & 0x0F)
-	respMsg.va[i+1] = byte(s.Port & 0xF0)
+	respMsg.va[i] = byte(s.Port >> 8)
+	respMsg.va[i+1] = byte(s.Port & 0x00FF)
 }
 
 func closeConn(c net.Conn) {

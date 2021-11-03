@@ -42,7 +42,7 @@ func (f *Forward) Start() {
 			break
 		}
 	}
-	f.Stop()
+	// f.Stop()
 }
 
 func (f *Forward) Stop() {
@@ -61,6 +61,10 @@ func (f *Forward) onError(err error) {
 }
 
 func communicate(src net.Conn, dst net.Conn) error {
+	defer func() {
+		closeConn(src)
+		closeConn(dst)
+	}()
 	var n int64
 	var err error
 

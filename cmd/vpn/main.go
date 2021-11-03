@@ -2,46 +2,43 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
 
 	"github.com/AlpsMonaco/proxy/socks5"
-	"github.com/AlpsMonaco/proxy/vpn"
 )
 
 func main() {
-	go ServerSide()
+	fmt.Println(os.Getpid())
+	const port int = 7899
+	const addr string = "127.0.0.1"
+	s := socks5.Server{
+		Address: addr,
+		Port:    port,
+		OnError: func(err error) {
+			fmt.Println(err)
+		},
 
-	go func() {
-		sockServer := socks5.Server{
-			Address: ServerIP,
-			Port:    SockPort,
-			OnClientConnect: func(c *socks5.ClientConn) {
-				// rm :=(*vpn.RequestMessage)(c.Allocator.GetPointer())
+		OnConnectRemote: func(host string, port int) (net.Conn, error) {
+			c := socks5.Client{
+				Address: addr,
+				Port:    7890,
+				Timeout: 0,
+			}
+			err := c.Connect(host, port)
+			if err != nil {
+				return nil, err
+			}
 
-			},
-			OnError: func(err error) { fmt.Println(err) },
-		}
-
-		if err := sockServer.Listen(); err != nil {
-			panic(err)
-		}
-	}()
-}
-
-const key = "123456"
-const ServerIP = "127.0.0.1"
-const Port = 61124
-
-const SockPort = 7899
-
-func ServerSide() {
-	var s = vpn.Server{
-		IP:       ServerIP,
-		Port:     Port,
-		Password: key,
-		OnError:  func(err error) { fmt.Println(err) },
+			return &c, nil
+		},
 	}
 
-	if err := s.Serve(); err != nil {
+	go http.ListenAndServe(":8888", nil)
+
+	if err := s.Listen(); err != nil {
 		panic(err)
 	}
 }

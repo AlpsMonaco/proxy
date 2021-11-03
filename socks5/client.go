@@ -14,6 +14,7 @@ import (
 var ErrSocks5VersionNotSupported = errors.New("Socks5 version not supported")
 var ErrSocks5MethodNotSupported = errors.New("Socks5 method not supported")
 var ErrSocks5CommandNotSupported = errors.New("Socks5 command not supported")
+var ErrRemoteNotAllowed = errors.New("request host not allowed")
 
 type Client struct {
 	Address  string
@@ -21,17 +22,7 @@ type Client struct {
 	Timeout  time.Duration
 	User     string
 	Password string
-	conn     net.Conn
-}
-
-func (c *Client) GetConn() net.Conn {
-	return c.conn
-}
-func (c *Client) GetLocalAddr() string {
-	return c.conn.LocalAddr().String()
-}
-func (c *Client) GetRemoteAddr() string {
-	return c.conn.RemoteAddr().String()
+	net.Conn
 }
 
 func (c *Client) Connect(addr string, port int) error {
@@ -60,7 +51,7 @@ func (c *Client) Connect(addr string, port int) error {
 
 func (c *Client) dial(a *util.Alloctor) error {
 	var err error
-	c.conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", c.Address, c.Port), c.Timeout)
+	c.Conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", c.Address, c.Port), c.Timeout)
 	if err != nil {
 		return err
 	}
@@ -81,14 +72,6 @@ func (c *Client) dial(a *util.Alloctor) error {
 	}
 
 	return nil
-}
-
-func (c *Client) Write(b []byte) (int, error) {
-	return c.conn.Write(b)
-}
-
-func (c *Client) Read(b []byte) (int, error) {
-	return c.conn.Read(b)
 }
 
 func fillVersionMessage(c *Client, vMsg *Socks5_VersionMessage) {
@@ -132,17 +115,17 @@ func fillRequestMessage(vMsg *Socks5_RequestMessage, sockcmd byte, addr string, 
 		i = i + 4
 	}
 
-	vMsg.va[i] = byte(port & 0x0F)
-	vMsg.va[i+1] = byte(port & 0xF0)
+	vMsg.va[i] = byte(port >> 8)
+	vMsg.va[i+1] = byte(port & 0x00FF)
 }
 
 func parseResponseMessage(rMsg *Socks5_ResponseMessage) {
-	fmt.Println(rMsg)
+	// fmt.Println(rMsg)
 }
 
 func isDomain(s string) bool {
 	for _, v := range []byte(s) {
-		if v > 58 {
+		if v >= 58 {
 			return true
 		}
 	}

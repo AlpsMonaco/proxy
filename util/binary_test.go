@@ -132,8 +132,8 @@ func TestSetBytes(t *testing.T) {
 }
 
 func TestEndian(t *testing.T) {
-	var port uint16 = 38
-	fmt.Printf("%x", port)
+	var port uint16 = 443
+	fmt.Printf("%x\n", port)
 	fmt.Printf("0x%02x %08b\n", port>>8, port>>8)
 	fmt.Printf("0x%02x %08b\n", port<<8, port<<8)
 	fmt.Printf("0x%02x %08b\n", port&0xFF00, port&0xFF00)
