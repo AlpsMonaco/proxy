@@ -2,11 +2,13 @@ package forward
 
 import (
 	"errors"
-	"io"
 	"net"
+
+	"github.com/AlpsMonaco/proxy/util"
 )
 
-var ErrNetClosed = errors.New("ErrNetClosed")
+var ErrConnClosed = errors.New("remote connection is closed")
+var ErrRWSizeDismatch = errors.New("read size not equal to write size")
 
 type Forward struct {
 	SrcConn net.Conn
@@ -60,23 +62,58 @@ func (f *Forward) onError(err error) {
 	}
 }
 
+// func communicate(src net.Conn, dst net.Conn) error {
+// 	defer func() {
+// 		closeConn(src)
+// 		closeConn(dst)
+// 	}()
+// 	var n int64
+// 	var err error
+
+// 	for {
+// 		n, err = io.Copy(dst, src)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if n == 0 {
+// 			return ErrNetClosed
+// 		}
+// 	}
+// }
+
+const defaultNetBufSize = 1 << 15
+
 func communicate(src net.Conn, dst net.Conn) error {
+	var a *util.Allocator = util.GetAlloctor(defaultNetBufSize)
 	defer func() {
+		util.FreeAllocator(a)
 		closeConn(src)
 		closeConn(dst)
 	}()
-	var n int64
-	var err error
+
+	var nr int
+	var er, ew, err error
 
 	for {
-		n, err = io.Copy(dst, src)
-		if err != nil {
-			return err
+		nr, er = src.Read(a.GetBytes())
+		if nr > 0 {
+			_, ew = dst.Write(a.GetByteSize(nr))
+			if ew != nil {
+				err = ew
+				break
+			}
+		} else {
+			err = ErrConnClosed
+			break
 		}
-		if n == 0 {
-			return ErrNetClosed
+
+		if er != nil {
+			err = er
+			break
 		}
 	}
+
+	return err
 }
 
 func closeConn(conn net.Conn) {

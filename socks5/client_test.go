@@ -31,7 +31,7 @@ HOST: www.google.com
 `))
 	assert(err)
 
-	var a util.Alloctor
+	var a util.Allocator
 	a.Alloc(256)
 
 	for {

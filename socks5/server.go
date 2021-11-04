@@ -7,7 +7,6 @@ import (
 	"unsafe"
 
 	"github.com/AlpsMonaco/proxy/forward"
-
 	"github.com/AlpsMonaco/proxy/util"
 )
 
@@ -22,18 +21,6 @@ type Server struct {
 	OnConnectRemote func(host string, port int) (net.Conn, error)
 
 	listener net.Listener
-}
-
-type ClientConn struct {
-	Addr      string
-	Port      int
-	Remote    net.Conn
-	Client    net.Conn
-	Allocator *util.Alloctor
-}
-
-func DefaultOnClientConnect(c *ClientConn) {
-	forward.NewForward(c.Remote, c.Client, nil).Start()
 }
 
 func (s *Server) Listen() error {
@@ -79,8 +66,7 @@ func (s *Server) onError(err error) {
 
 func (s *Server) newConn(c net.Conn) {
 	var err error
-	var a util.Alloctor
-	a.Alloc(264)
+	a := util.GetAlloctor(264)
 
 	_, err = c.Read(a.GetBytes())
 	if err != nil {
@@ -135,6 +121,7 @@ func (s *Server) newConn(c net.Conn) {
 		return
 	}
 
+	util.FreeAllocator(a)
 	forward.NewForward(c, remote, s.onError).Start()
 }
 
@@ -148,16 +135,6 @@ func parseVersionMessage(vMsg *Socks5_VersionMessage) error {
 func fillSelectionMessage(sMsg *Socks5_SelectionMessage) {
 	sMsg.Ver = SOCKS5_VERSION
 	sMsg.Method = SOCKS5_METHOD_NO_AUTH
-}
-
-func ParseRequestMessage(rMsg *Socks5_RequestMessage) error {
-	if rMsg.Ver != SOCKS5_VERSION {
-		return ErrSocks5VersionNotSupported
-	}
-	if rMsg.Cmd != SOCKS5_CMD_CONNECT {
-		return ErrSocks5CommandNotSupported
-	}
-	return nil
 }
 
 func fillResponseMessage(respMsg *Socks5_ResponseMessage, s *Server) {

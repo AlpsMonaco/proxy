@@ -1,25 +1,44 @@
 package util
 
 import (
+	"sync"
 	"unsafe"
 )
 
-type Alloctor struct {
+type Allocator struct {
 	b []byte
 }
 
-func (a *Alloctor) Alloc(size int) {
+func (a *Allocator) Alloc(size int) {
 	a.b = make([]byte, size)
 }
 
-func (a *Alloctor) GetPointer() unsafe.Pointer {
+func (a *Allocator) GetPointer() unsafe.Pointer {
 	return unsafe.Pointer(&a.b[0])
 }
 
-func (a *Alloctor) GetBytes() []byte {
+func (a *Allocator) GetBytes() []byte {
 	return a.b
 }
 
-func (a *Alloctor) GetByteSize(size int) []byte {
+func (a *Allocator) GetByteSize(size int) []byte {
 	return a.b[0:size]
+}
+
+var p sync.Pool = sync.Pool{
+	New: func() interface{} {
+		return &Allocator{}
+	},
+}
+
+func GetAlloctor(size int) *Allocator {
+	a := p.Get().(*Allocator)
+	if len(a.b) < size {
+		a.Alloc(size)
+	}
+	return a
+}
+
+func FreeAllocator(a *Allocator) {
+	p.Put(a)
 }

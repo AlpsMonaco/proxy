@@ -27,10 +27,9 @@ type Client struct {
 
 func (c *Client) Connect(addr string, port int) error {
 	var err error
-	var a util.Alloctor
-	a.Alloc(264)
 
-	if err = c.dial(&a); err != nil {
+	a := util.GetAlloctor(264)
+	if err = c.dial(a); err != nil {
 		return err
 	}
 
@@ -49,7 +48,7 @@ func (c *Client) Connect(addr string, port int) error {
 	return nil
 }
 
-func (c *Client) dial(a *util.Alloctor) error {
+func (c *Client) dial(a *util.Allocator) error {
 	var err error
 	c.Conn, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", c.Address, c.Port), c.Timeout)
 	if err != nil {
@@ -70,6 +69,8 @@ func (c *Client) dial(a *util.Alloctor) error {
 	if err = parseSelectionMessage((*Socks5_SelectionMessage)(a.GetPointer())); err != nil {
 		return err
 	}
+
+	util.FreeAllocator(a)
 
 	return nil
 }

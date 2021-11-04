@@ -44,7 +44,7 @@ func TestConnection(t *testing.T) {
 	conn, err = net.Dial("tcp", "127.0.0.1:7890")
 	assert(err)
 
-	var a util.Alloctor
+	var a util.Allocator
 	a.Alloc(264)
 
 	vMsg := (*Socks5_VersionMessage)(a.GetPointer())
@@ -128,7 +128,7 @@ func socks5ServerSide(t *testing.T) {
 		assert(err)
 
 		go func(conn net.Conn) {
-			var a util.Alloctor
+			var a util.Allocator
 			a.Alloc(264)
 
 			_, err := conn.Read(a.GetBytes())

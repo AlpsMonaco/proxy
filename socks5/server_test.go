@@ -24,7 +24,7 @@ func pointerMethod(p uptr) {
 }
 
 func TestPointer(t *testing.T) {
-	var a util.Alloctor
+	var a util.Allocator
 	a.Alloc(264)
 
 	c := (*Socks5_RequestMessage)(a.GetPointer())

@@ -140,3 +140,7 @@ func TestEndian(t *testing.T) {
 	fmt.Printf("0x%02x %08b\n", port&0x00FF, port&0x00FF)
 
 }
+
+func TestPool(t *testing.T) {
+
+}
