@@ -47,7 +47,7 @@ func (c *Client) Connect(host string, port uint16) error {
 	return nil
 }
 
-// current ipv4 onlt
+// current ipv4 only
 func fillRequestMsg(rm *RequestMessage, addrType byte, IP []byte, port uint16) {
 	rm.Ver = VER
 	rm.Atype = addrType
@@ -56,5 +56,5 @@ func fillRequestMsg(rm *RequestMessage, addrType byte, IP []byte, port uint16) {
 	rm.VA[2] = IP[2]
 	rm.VA[3] = IP[3]
 	rm.VA[4] = byte(port >> 8)
-	rm.VA[5] = byte(port & 0xF0)
+	rm.VA[5] = byte(port & 0x00FF)
 }
