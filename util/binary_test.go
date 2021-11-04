@@ -3,7 +3,9 @@ package util
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
+	"unsafe"
 )
 
 func Assert(err error) {
@@ -141,6 +143,23 @@ func TestEndian(t *testing.T) {
 
 }
 
-func TestPool(t *testing.T) {
+func TestBinary(t *testing.T) {
+	var a uint32 = 62537885
+	var size int = 4
 
+	fmt.Printf("0x%08x\n", a)
+	fmt.Printf("0x%08x\n", a>>8)
+	fmt.Printf("0x%08x\n", a<<8)
+	fmt.Printf("0x%08x\n", a&0x00FF)
+	fmt.Printf("0x%08x\n", a&0xFF00)
+
+	b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: uintptr((unsafe.Pointer(&a))),
+		Len:  size,
+		Cap:  size,
+	}))
+
+	for i := 0; i < size; i++ {
+		fmt.Printf("0x%02x\n", b[i])
+	}
 }
