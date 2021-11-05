@@ -1,59 +1,71 @@
 package vpn
 
-import (
-	"errors"
-	"fmt"
+import "unsafe"
 
-	"github.com/AlpsMonaco/proxy/util"
-)
-
-const ServerBufSize = ClientBufSize + 16
-const ClientBufSize = 264
-
-type RequestMessage struct {
-	Ver   byte
-	Atype byte
-	VA    [256]byte
+type Header struct {
+	Size uint16
+	Cmd  uint16
 }
 
-type ResponseMessage struct {
-	Ver          byte
-	ResponseCode byte
+const maxMessageSize uint16 = 1<<6 - 1
+
+type Message struct {
+	Header Header
+	Body   [maxMessageSize - 4]byte
 }
+
+type Packet struct {
+	Header *Header
+	Body   *[maxMessageSize - 4]byte
+}
+
+func (p *Packet) Parse(b []byte) (byte, []byte) {
+	if len(b) < 4 {
+		return PacketShort, nil
+	}
+
+	p.Header = (*Header)(unsafe.Pointer(&b[0]))
+	if len(b) < int(p.Header.Size) {
+		return PacketShort, nil
+	}
+
+	p.Body = (*[maxMessageSize - 4]byte)(unsafe.Pointer(&b[4]))
+	if len(b) > int(p.Header.Size) {
+		return PacketExtra, b[p.Header.Size:]
+	}
+
+	return PacketEqual, nil
+}
+
+/*
+Expect n byte
+Got(buf,m byte)
+Split()
+*/
 
 const (
-	_ byte = iota
-	AType_IPV4
-	Atype_Domain
+	PacketEqual byte = iota
+	PacketShort
+	PacketExtra
 )
 
-const VER = 0x01
+// func ParseHeader(b []byte) (byte, *Header) {
+// 	if len(b) < 4 {
+// 		return PacketShort, nil
+// 	}
 
-var (
-	ErrVersionDismatch = errors.New("version dismatch")
-	ErrAtypeUnknown    = errors.New("Addr type unknown")
-)
+// 	return PacketEqual, (*Header)(unsafe.Pointer(&b[0]))
+// }
 
-func (rm *RequestMessage) Parse() (string, error) {
-	if rm.Ver != VER {
-		return "", ErrVersionDismatch
-	}
+// func ParseBody(header *Header, b []byte) byte {
+// 	var status byte = PacketEqual
+// 	if len(b) < int(header.Size) {
+// 		status = PacketShort
+// 		return status
+// 	}
 
-	var ip string
-	var port int
-	switch rm.Atype {
-	case AType_IPV4:
-		for i := 0; i < 4; i++ {
-			ip = ip + util.ByteToString(rm.VA[i]) + "."
-		}
-		ip = ip[:len(ip)-1]
-		port = int(rm.VA[4])<<8 + int(rm.VA[5])
-	case Atype_Domain:
-		ip = string(rm.VA[1:rm.VA[0]])
-		port = int(rm.VA[rm.VA[0]])<<8 + int(rm.VA[rm.VA[0]+1])
-	default:
-		return "", ErrAtypeUnknown
-	}
+// 	if len(b) > int(header.Size) {
+// 		status = PacketExtra
+// 	}
 
-	return fmt.Sprintf("%s:%d", ip, port), nil
-}
+// }
