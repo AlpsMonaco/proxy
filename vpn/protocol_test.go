@@ -45,7 +45,7 @@ func TestPacketTransport(t *testing.T) {
 		Cap:  size,
 	}))
 
-	msg.Header.Size = 10
+	msg.Header.Size = uint16(size)
 	msg.Header.Cmd = 0
 	msg.Body[0] = 0x0A
 	msg.Body[1] = 0x0A
@@ -62,7 +62,7 @@ func TestPacketTransport(t *testing.T) {
 		Cap:  size,
 	}))
 
-	msg.Header.Size = 10
+	msg.Header.Size = uint16(size)
 	msg.Header.Cmd = 0
 	msg.Body[0] = 0x06
 	msg.Body[1] = 0x06
@@ -75,7 +75,7 @@ func TestPacketTransport(t *testing.T) {
 		Cap:  size,
 	}))
 
-	msg.Header.Size = 10
+	msg.Header.Size = uint16(size)
 	msg.Header.Cmd = 0
 	msg.Body[0] = 0x05
 	fmt.Println(b)
@@ -138,7 +138,7 @@ func (fn *FakeNet) Read(b []byte) (int, error) {
 
 func TestPacketSplit(t *testing.T) {
 	var buf []byte = make([]byte, 1024)
-	var b = []byte{10, 0, 0, 0, 10, 10, 10, 10, 10, 10, 10, 0, 0, 0, 6, 6, 10, 0, 0, 0, 5, 17, 0, 0, 0, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17}
+	var b = []byte{10, 0, 0, 0, 10, 10, 10, 10, 10, 10, 6, 0, 0, 0, 6, 6, 5, 0, 0, 0, 5, 17, 0, 0, 0, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17}
 	var fn FakeNet
 	fn.b = b
 	var beginIndex int = 0
@@ -146,7 +146,7 @@ func TestPacketSplit(t *testing.T) {
 	for {
 		var p Packet
 		n, _ := fn.Read(buf[beginIndex:])
-		status, extra := p.Parse(buf[:n])
+		status, extra := p.Parse(buf[:beginIndex+n])
 		if status == PacketShort {
 			beginIndex += n
 			continue
@@ -156,5 +156,8 @@ func TestPacketSplit(t *testing.T) {
 		} else {
 			beginIndex = 0
 		}
+
+		fmt.Println(p.Header)
+		fmt.Println(p.Body)
 	}
 }
