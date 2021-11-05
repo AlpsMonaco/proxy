@@ -129,35 +129,68 @@ func (fn *FakeNet) Read(b []byte) (int, error) {
 		copy(b, fn.b[12:25])
 		return 25 - 12, nil
 	case 4:
-		copy(b, fn.b[25:38])
+		copy(b, fn.b[25:37])
 		return 38 - 25, nil
 	default:
-		panic("end")
+		return 0, nil
 	}
+}
+
+func getPacket(p *Packet) {
+	fmt.Println("----------Packet Start----------")
+	fmt.Println(p.Header.Size)
+	fmt.Println(p.Header.Cmd)
+	fmt.Println(p.Body)
+	fmt.Println("----------Packet End----------")
 }
 
 func TestPacketSplit(t *testing.T) {
 	var buf []byte = make([]byte, 1024)
-	var b = []byte{10, 0, 0, 0, 10, 10, 10, 10, 10, 10, 6, 0, 0, 0, 6, 6, 5, 0, 0, 0, 5, 17, 0, 0, 0, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17}
+	var b = []byte{10, 0, 0, 0, 10, 10, 10, 10, 10, 10, 6, 0, 0, 0, 6, 6, 5, 0, 0, 0, 5, 5, 0, 0, 0, 5, 6, 0, 1, 0, 17, 17, 6, 0, 0, 1, 17, 1}
 	var fn FakeNet
 	fn.b = b
-	var beginIndex int = 0
+
+	var p Packet
+	var n, i int
 
 	for {
-		var p Packet
-		n, _ := fn.Read(buf[beginIndex:])
-		status, extra := p.Parse(buf[:beginIndex+n])
-		if status == PacketShort {
-			beginIndex += n
-			continue
-		} else if status == PacketExtra {
-			copy(buf, extra)
-			beginIndex = len(extra)
-		} else {
-			beginIndex = 0
+		n, _ = fn.Read(buf[i:])
+		if n == 0 {
+			break
 		}
+		status, extra := p.Parse(buf[:i+n])
+		switch status {
+		case PacketShort:
+			i += n
+		case PacketExtra:
+			getPacket(&p)
+			copy(buf, extra)
+			i = len(extra)
+			isBreak := false
+			for {
+				status, extra = p.Parse(buf[:i])
+				switch status {
+				case PacketShort:
+					isBreak = true
+				case PacketExtra:
+					getPacket(&p)
+					copy(buf, extra)
+					i = len(extra)
+				case PacketEqual:
+					getPacket(&p)
+					isBreak = true
+					i = 0
+				}
 
-		fmt.Println(p.Header)
-		fmt.Println(p.Body)
+				if isBreak {
+					break
+				}
+			}
+
+		case PacketEqual:
+			getPacket(&p)
+			i = 0
+		}
 	}
+
 }
