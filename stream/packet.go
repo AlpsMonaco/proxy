@@ -2,6 +2,7 @@ package stream
 
 import (
 	"reflect"
+	"sync"
 	"unsafe"
 )
 
@@ -26,6 +27,20 @@ type Packet struct {
 	data    uintptr
 	len     int
 	cap     int
+}
+
+var packetPool sync.Pool = sync.Pool{
+	New: func() interface{} {
+		return &Packet{}
+	},
+}
+
+func GetPacket() *Packet {
+	return (packetPool.Get()).(*Packet)
+}
+
+func FreePacket(p *Packet) {
+	packetPool.Put(p)
 }
 
 func (p *Packet) Parse(b []byte) byte {

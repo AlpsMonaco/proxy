@@ -36,7 +36,7 @@ func handle(conn net.Conn, s Stream) {
 	var n, i int
 	var status byte
 	var err error
-	var p = new(Packet)
+	var p = GetPacket()
 
 	for {
 		n, err = conn.Read(a.Shift(i))
