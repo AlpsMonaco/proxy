@@ -29,14 +29,14 @@ func (a *Allocator) Shift(length int) []byte {
 	return a.b[length:]
 }
 
-var p sync.Pool = sync.Pool{
+var allocatorPool sync.Pool = sync.Pool{
 	New: func() interface{} {
 		return &Allocator{}
 	},
 }
 
 func GetAlloctor(size int) *Allocator {
-	a := p.Get().(*Allocator)
+	a := allocatorPool.Get().(*Allocator)
 	if len(a.b) < size {
 		a.Alloc(size)
 	}
@@ -44,5 +44,5 @@ func GetAlloctor(size int) *Allocator {
 }
 
 func FreeAllocator(a *Allocator) {
-	p.Put(a)
+	allocatorPool.Put(a)
 }
