@@ -25,6 +25,10 @@ func (a *Allocator) GetByteSize(size int) []byte {
 	return a.b[0:size]
 }
 
+func (a *Allocator) Shift(length int) []byte {
+	return a.b[length:]
+}
+
 var p sync.Pool = sync.Pool{
 	New: func() interface{} {
 		return &Allocator{}
