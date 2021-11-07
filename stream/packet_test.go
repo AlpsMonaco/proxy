@@ -226,7 +226,7 @@ func TestPacketSplit(t *testing.T) {
 
 func PrintPacket(p *Packet) {
 	fmt.Println(p.Header)
-	fmt.Println((*p.Body)[:p.Header.Size-HeaderSize])
+	fmt.Println((*p.Body)[:p.Header.Size-headerSize])
 	fmt.Println(p.bufSize)
 }
 

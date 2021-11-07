@@ -7,8 +7,15 @@ import (
 )
 
 const PacketSize = 1 << 15
-const HeaderSize = 2
-const BodySize = PacketSize - HeaderSize
+
+var (
+	headerSize uint16 = uint16(unsafe.Sizeof(Header{}))
+	bodySize          = PacketSize - headerSize
+)
+
+func GetHeaderSize() uint16 {
+	return headerSize
+}
 
 const (
 	PacketEqual byte = 0x00
@@ -21,7 +28,7 @@ type Header struct {
 }
 
 type Packet struct {
-	Header  *Header
+	Header  Header
 	Body    *[]byte
 	bufSize uint16
 	data    uintptr
@@ -45,15 +52,15 @@ func FreePacket(p *Packet) {
 
 func (p *Packet) Parse(b []byte) byte {
 	p.bufSize = uint16(len(b))
-	if p.bufSize < HeaderSize {
+	if p.bufSize < headerSize {
 		return PacketShort
 	}
-	p.Header = (*Header)(unsafe.Pointer(&b[0]))
+	p.Header = *(*Header)(unsafe.Pointer(&b[0]))
 	if p.bufSize < p.Header.Size {
 		return PacketShort
 	}
-	p.data = uintptr(unsafe.Pointer(&b[HeaderSize]))
-	p.len = int(p.Header.Size) - HeaderSize
+	p.data = uintptr(unsafe.Pointer(&b[headerSize]))
+	p.len = int(p.Header.Size - headerSize)
 	p.cap = p.len
 	p.Body = (*[]byte)(unsafe.Pointer(&p.data))
 
@@ -70,7 +77,7 @@ func (p *Packet) ExtraPacket() []byte {
 	var newBufSize int = int(p.bufSize - p.Header.Size)
 
 	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: p.data + uintptr(p.Header.Size-HeaderSize),
+		Data: p.data + uintptr(p.Header.Size-headerSize),
 		Len:  newBufSize,
 		Cap:  newBufSize,
 	}))
