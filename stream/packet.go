@@ -1,6 +1,8 @@
 package stream
 
 import (
+	"io"
+	"net"
 	"reflect"
 	"sync"
 	"unsafe"
@@ -28,12 +30,18 @@ type Header struct {
 }
 
 type Packet struct {
+	net.Conn
+
 	Header  Header
 	Body    *[]byte
 	bufSize uint16
-	data    uintptr
-	len     int
-	cap     int
+
+	i      int
+	status byte
+
+	data uintptr
+	len  int
+	cap  int
 }
 
 var packetPool sync.Pool = sync.Pool{
@@ -81,4 +89,34 @@ func (p *Packet) ExtraPacket() []byte {
 		Len:  newBufSize,
 		Cap:  newBufSize,
 	}))
+}
+
+func (p *Packet) Read(b []byte) (n int, err error) {
+	p.i = 0
+	if p.bufSize > p.Header.Size {
+		old := p.ExtraPacket()
+		copy(b, old)
+		p.i = len(old)
+		p.status = p.Parse(b[:len(old)])
+		if p.status != PacketShort {
+			return p.i, nil
+		}
+	} else {
+		p.bufSize = 0
+	}
+	for {
+		n, err = p.Conn.Read(b[p.bufSize:])
+		if n == 0 {
+			err = io.EOF
+		}
+		if err != nil {
+			return
+		}
+		p.i += n
+		p.status = p.Parse(b[:p.i])
+		if p.status == PacketShort {
+			continue
+		}
+		return p.i, nil
+	}
 }

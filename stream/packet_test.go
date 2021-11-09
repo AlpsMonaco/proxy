@@ -2,7 +2,7 @@ package stream
 
 import (
 	"fmt"
-	"io"
+	"net"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -105,7 +105,7 @@ func TestPacketTransport(t *testing.T) {
 }
 
 type FakeNet struct {
-	io.ReadWriter
+	net.Conn
 	b []byte
 	t int
 }
@@ -118,15 +118,19 @@ func (fn *FakeNet) Read(b []byte) (int, error) {
 	fn.t = fn.t + 1
 	switch fn.t {
 	case 1:
+		fmt.Println("pop", fn.b[0:3])
 		copy(b, fn.b[0:3])
 		return 3, nil
 	case 2:
+		fmt.Println("pop", fn.b[3:12])
 		copy(b, fn.b[3:12])
 		return 12 - 3, nil
 	case 3:
+		fmt.Println("pop", fn.b[12:21])
 		copy(b, fn.b[12:21])
 		return 21 - 12, nil
 	case 4:
+		fmt.Println("pop", fn.b[21:38])
 		copy(b, fn.b[21:38])
 		return 38 - 21, nil
 	default:
@@ -230,49 +234,63 @@ func PrintPacket(p *Packet) {
 	fmt.Println(p.bufSize)
 }
 
-func TestPacketParse(t *testing.T) {
-	a := util.GetAlloctor(PacketSize)
-	var n, i int
-	var status byte
-	var err error
-	var p Packet
-	var b = []byte{10, 0, 10, 10, 10, 10, 10, 10, 10, 10, 6, 0, 6, 6, 6, 6, 5, 0, 5, 5, 5, 17, 0, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17}
-	var fn FakeNet
-	fn.b = b
+type stream struct {
+	net.Conn
+	offset   int
+	lastSize int
+}
+
+func (s *stream) Read(b []byte) (n int, err error) {
+	if s.offset > s.lastSize {
+		copy(b, b[s.lastSize:s.offset])
+	}
+	s.offset = s.offset - s.lastSize
 
 	for {
-		n, err = fn.Read(a.Shift(i))
+		n, err = s.Conn.Read(b[s.offset:])
 		if err != nil {
-			panic(err)
+			return n, err
 		}
-		if n == 0 {
-			break
-		}
-		status = p.Parse(a.GetByteSize(i + n))
-		if status == PacketShort {
-			i += n
+		s.offset = s.offset + n
+		if s.offset < int(headerSize) {
 			continue
 		}
-		PrintPacket(&p)
-		if status == PacketEqual {
-			i = 0
+		s.lastSize = int((*Header)(unsafe.Pointer(&b[0])).Size)
+		if s.offset < s.lastSize {
 			continue
 		}
-
-		// case PacketExtra
-		for {
-			b := p.ExtraPacket()
-			status = p.Parse(b)
-			if status == PacketShort {
-				copy(a.GetBytes(), b)
-				i = len(b)
-				break
-			}
-			PrintPacket(&p)
-			if status == PacketEqual {
-				i = 0
-				break
-			}
-		}
+		return s.lastSize, nil
 	}
+}
+
+func TestPacketParse(t *testing.T) {
+	a := util.GetAlloctor(PacketSize)
+	var b = []byte{10, 0, 10, 10, 10, 10, 10, 10, 10, 10, 6, 0, 6, 6, 6, 6, 5, 0, 5, 5, 5, 17, 0, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17}
+	var fn FakeNet
+	var n int
+	var err error
+	fn.b = b
+
+	s := Packet{
+		Conn: &fn,
+	}
+
+	n, err = s.Read(a.GetBytes())
+	fmt.Println(n, err)
+	fmt.Println(s.Header, (*s.Body))
+	n, err = s.Read(a.GetBytes())
+	fmt.Println(n, err)
+	fmt.Println(s.Header, (*s.Body))
+	n, err = s.Read(a.GetBytes())
+	fmt.Println(n, err)
+	fmt.Println(s.Header, (*s.Body))
+	n, err = s.Read(a.GetBytes())
+	fmt.Println(n, err)
+	fmt.Println(s.Header, (*s.Body))
+	n, err = s.Read(a.GetBytes())
+	fmt.Println(n, err)
+	fmt.Println(s.Header, (*s.Body))
+	n, err = s.Read(a.GetBytes())
+	fmt.Println(n, err)
+	fmt.Println(s.Header, (*s.Body))
 }
