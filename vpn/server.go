@@ -45,7 +45,7 @@ func (s *Server) newConn(conn net.Conn) {
 	var p *stream.Packet = &stream.Packet{
 		Conn: conn,
 	}
-	// var n int
+
 	var err error
 	_, err = p.Read(a.GetBytes())
 	if err != nil {

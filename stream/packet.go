@@ -33,7 +33,7 @@ type Packet struct {
 	net.Conn
 
 	Header  Header
-	Body    *[]byte
+	Body    []byte
 	bufSize uint16
 
 	i      int
@@ -70,7 +70,7 @@ func (p *Packet) Parse(b []byte) byte {
 	p.data = uintptr(unsafe.Pointer(&b[headerSize]))
 	p.len = int(p.Header.Size - headerSize)
 	p.cap = p.len
-	p.Body = (*[]byte)(unsafe.Pointer(&p.data))
+	p.Body = *(*[]byte)(unsafe.Pointer(&p.data))
 
 	if p.bufSize > p.Header.Size {
 		return PacketExtra
@@ -119,4 +119,19 @@ func (p *Packet) Read(b []byte) (n int, err error) {
 		}
 		return p.i, nil
 	}
+}
+
+func (p *Packet) Write(b []byte) (n int, err error) {
+	p.i = len(b)
+	p.data = uintptr(unsafe.Pointer(&p.i))
+	p.len = 2
+	p.cap = 2
+	p.Body = *(*[]byte)(unsafe.Pointer(&p.data))
+
+	n, err = p.Conn.Write(p.Body)
+	if err != nil {
+		return
+	}
+
+	return p.Conn.Write(b)
 }

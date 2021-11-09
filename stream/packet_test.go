@@ -230,7 +230,7 @@ func TestPacketSplit(t *testing.T) {
 
 func PrintPacket(p *Packet) {
 	fmt.Println(p.Header)
-	fmt.Println((*p.Body)[:p.Header.Size-headerSize])
+	fmt.Println((p.Body)[:p.Header.Size-headerSize])
 	fmt.Println(p.bufSize)
 }
 
@@ -277,20 +277,33 @@ func TestPacketParse(t *testing.T) {
 
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
-	fmt.Println(s.Header, (*s.Body))
+	fmt.Println(s.Header, (s.Body))
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
-	fmt.Println(s.Header, (*s.Body))
+	fmt.Println(s.Header, (s.Body))
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
-	fmt.Println(s.Header, (*s.Body))
+	fmt.Println(s.Header, (s.Body))
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
-	fmt.Println(s.Header, (*s.Body))
+	fmt.Println(s.Header, (s.Body))
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
-	fmt.Println(s.Header, (*s.Body))
+	fmt.Println(s.Header, (s.Body))
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
-	fmt.Println(s.Header, (*s.Body))
+	fmt.Println(s.Header, (s.Body))
+}
+
+func TestIntBytes(t *testing.T) {
+	var i int
+	size := unsafe.Sizeof(i)
+	i = 1
+
+	b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&i)),
+		Len:  int(size),
+		Cap:  int(size),
+	}))
+	t.Log(b)
 }
