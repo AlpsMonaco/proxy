@@ -123,12 +123,11 @@ func (p *Packet) Read(b []byte) (n int, err error) {
 
 func (p *Packet) Write(b []byte) (n int, err error) {
 	p.i = len(b)
-	p.data = uintptr(unsafe.Pointer(&p.i))
-	p.len = 2
-	p.cap = 2
-	p.Body = *(*[]byte)(unsafe.Pointer(&p.data))
+	header := make([]byte, 2)
+	header[0] = byte(p.i & 0x00FF)
+	header[1] = byte((p.i & 0xFF00) >> 8)
 
-	n, err = p.Conn.Write(p.Body)
+	n, err = p.Conn.Write(header)
 	if err != nil {
 		return
 	}

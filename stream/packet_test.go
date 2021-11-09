@@ -111,6 +111,7 @@ type FakeNet struct {
 }
 
 func (fn *FakeNet) Write(b []byte) (int, error) {
+	fmt.Println("got ", b)
 	return 0, nil
 }
 
@@ -278,21 +279,27 @@ func TestPacketParse(t *testing.T) {
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
 	fmt.Println(s.Header, (s.Body))
+	s.Write(s.Body)
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
 	fmt.Println(s.Header, (s.Body))
+	s.Write(s.Body)
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
 	fmt.Println(s.Header, (s.Body))
+	s.Write(s.Body)
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
 	fmt.Println(s.Header, (s.Body))
+	s.Write(s.Body)
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
 	fmt.Println(s.Header, (s.Body))
+	s.Write(s.Body)
 	n, err = s.Read(a.GetBytes())
 	fmt.Println(n, err)
 	fmt.Println(s.Header, (s.Body))
+	s.Write(s.Body)
 }
 
 func TestIntBytes(t *testing.T) {
