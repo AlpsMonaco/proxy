@@ -41,6 +41,10 @@ func (c *Client) Read() (b []byte, err error) {
 	return c.p.GetData(), nil
 }
 
+func (c *Client) GetConn() net.Conn {
+	return c.conn
+}
+
 func (c *Client) Write(b []byte) (err error) {
 	if err = c.p.WriteSize(c.conn, len(b)); err != nil {
 		return err

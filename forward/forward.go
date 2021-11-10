@@ -81,7 +81,7 @@ func (f *Forward) onError(err error) {
 // 	}
 // }
 
-const defaultNetBufSize = 1 << 15
+const defaultNetBufSize = 1 << 16
 
 func communicate(src net.Conn, dst net.Conn) error {
 	var a *util.Allocator = util.GetAlloctor(defaultNetBufSize)

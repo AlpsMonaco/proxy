@@ -30,7 +30,7 @@ func (s *Server) Listen() error {
 
 func (s *Server) onError(err error) {
 	if s.ErrorHandle != nil {
-		s.onError(err)
+		s.ErrorHandle(err)
 	}
 }
 
@@ -84,6 +84,7 @@ func (s *Server) newConn(client net.Conn) {
 		var buf = make([]byte, 64)
 		for {
 			n, err := remote.Read(buf)
+			fmt.Println("remote says", buf)
 			if n == 0 {
 				err = io.EOF
 			}
@@ -96,7 +97,7 @@ func (s *Server) newConn(client net.Conn) {
 				s.onError(err)
 				return
 			}
-			_, err = client.Write(buf)
+			_, err = client.Write(buf[:n])
 			if err != nil {
 				s.onError(err)
 				return

@@ -1,6 +1,7 @@
 package vpn
 
 import (
+	"fmt"
 	"io"
 	"unsafe"
 
@@ -28,7 +29,7 @@ func (p *Packet) Free() {
 }
 
 func InitPacket(p *Packet) {
-	p.a = util.GetAlloctor(1 << 15)
+	p.a = util.GetAlloctor(1 << 16)
 }
 
 func FreePacket(p *Packet) {
@@ -74,6 +75,7 @@ func (p *Packet) readFull(r io.Reader) error {
 	if err = p.readBody(r); err != nil {
 		return err
 	}
+	fmt.Println("packet", p.header.Size, p.a.GetByteSize(int(p.header.Size)))
 
 	return nil
 }
