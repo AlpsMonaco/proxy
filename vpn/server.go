@@ -84,7 +84,6 @@ func (s *Server) newConn(client net.Conn) {
 		var buf = make([]byte, 64)
 		for {
 			n, err := remote.Read(buf)
-			fmt.Println("remote says", buf)
 			if n == 0 {
 				err = io.EOF
 			}

@@ -1,7 +1,6 @@
 package vpn
 
 import (
-	"fmt"
 	"io"
 	"unsafe"
 
@@ -75,7 +74,6 @@ func (p *Packet) readFull(r io.Reader) error {
 	if err = p.readBody(r); err != nil {
 		return err
 	}
-	fmt.Println("packet", p.header.Size, p.a.GetByteSize(int(p.header.Size)))
 
 	return nil
 }
