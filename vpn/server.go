@@ -5,11 +5,6 @@ import (
 	"io"
 	"net"
 	"time"
-	"unsafe"
-
-	"github.com/AlpsMonaco/proxy/socks5"
-	"github.com/AlpsMonaco/proxy/stream"
-	"github.com/AlpsMonaco/proxy/util"
 )
 
 type Server struct {
@@ -17,7 +12,6 @@ type Server struct {
 	Port        int
 	Key         []byte
 	ErrorHandle func(err error)
-	l           net.Listener
 }
 
 func (s *Server) Listen() error {
@@ -30,7 +24,7 @@ func (s *Server) Listen() error {
 		if err != nil {
 			return err
 		}
-		s.newConn(conn)
+		go s.newConn(conn)
 	}
 }
 
@@ -40,51 +34,56 @@ func (s *Server) onError(err error) {
 	}
 }
 
-func (s *Server) newConn(conn net.Conn) {
-	defer closeConn(conn)
-	var a *util.Allocator = util.GetAlloctor(stream.PacketSize)
-	defer util.FreeAllocator(a)
-	p := stream.GetPacket()
-	p.Conn = conn
-	defer stream.FreePacket(p)
-
-	var err error
-	_, err = p.Read(a.GetBytes())
-	if err != nil {
-		s.onError(err)
-		return
-	}
-
-	host := (*socks5.Socks5_RequestMessage)(unsafe.Pointer(&p.Body[0])).GetHost()
-	port := (*socks5.Socks5_RequestMessage)(unsafe.Pointer(&p.Body[0])).GetPort()
-	var remote net.Conn
-	remote, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), 10*time.Second)
-	resp := (*Protocol_Response)(a.GetPointer())
-	if err != nil {
-		s.onError(err)
-		resp.Code = Failed
-		resp.FillMsg("失败")
-	}
-	defer closeConn(remote)
-	resp.Code = Success
-	resp.FillMsg("成功")
-	_, err = p.Write(a.GetByteSize(resp.GetSize()))
-	if err != nil {
-		s.onError(err)
-		return
-	}
-	s.beginProxy(p, remote, a)
-}
-
-func (s *Server) beginProxy(client, remote net.Conn, a *util.Allocator) {
+func (s *Server) newConn(client net.Conn) {
+	var p Packet
+	p.Init()
+	defer p.Free()
 	defer closeConn(client)
+
+	err := p.Next(client)
+	if err != nil {
+		s.onError(err)
+		return
+	}
+
+	v := (*Verify)(p.GetPointer())
+	if !v.IsKeyMatch() {
+		return
+	}
+
+	if err = p.Next(client); err != nil {
+		s.onError(err)
+		return
+	}
+
+	pr := (*ProxyRequest)(p.GetPointer())
+	host := pr.GetHost()
+	port := pr.GetPort()
+	remote, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), 10*time.Second)
+	gr := (*GeneralResponse)(p.GetPointer())
+	if err != nil {
+		s.onError(err)
+		gr.Code = Error
+		gr.SetMsg("连接失败")
+		err = p.WriteBuffer(client, gr.GetSize())
+		if err != nil {
+			s.onError(err)
+		}
+		return
+	}
 	defer closeConn(remote)
-	var n int
-	var err error
+	gr.Code = Success
+	gr.SetMsg("可以开始传输数据")
+	err = p.WriteBuffer(client, gr.GetSize())
+	if err != nil {
+		s.onError(err)
+		return
+	}
 
 	go func() {
+		var buf = make([]byte, 64)
 		for {
-			n, err = remote.Read(a.GetBytes())
+			n, err := remote.Read(buf)
 			if n == 0 {
 				err = io.EOF
 			}
@@ -92,7 +91,12 @@ func (s *Server) beginProxy(client, remote net.Conn, a *util.Allocator) {
 				s.onError(err)
 				return
 			}
-			n, err = client.Write(a.GetByteSize(n))
+			err = p.WriteSize(client, n)
+			if err != nil {
+				s.onError(err)
+				return
+			}
+			_, err = client.Write(buf)
 			if err != nil {
 				s.onError(err)
 				return
@@ -100,23 +104,18 @@ func (s *Server) beginProxy(client, remote net.Conn, a *util.Allocator) {
 		}
 	}()
 
-	func() {
-		for {
-			n, err = client.Read(a.GetBytes())
-			if n == 0 {
-				err = io.EOF
-			}
-			if err != nil {
-				s.onError(err)
-				return
-			}
-			n, err = remote.Write(a.GetByteSize(n))
-			if err != nil {
-				s.onError(err)
-				return
-			}
+	for {
+		err = p.Next(client)
+		if err != nil {
+			s.onError(err)
+			return
 		}
-	}()
+		_, err = remote.Write(p.GetData())
+		if err != nil {
+			s.onError(err)
+			return
+		}
+	}
 }
 
 func closeConn(conn net.Conn) {

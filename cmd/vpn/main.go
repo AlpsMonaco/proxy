@@ -32,23 +32,22 @@ func main() {
 		ErrorHandle: func(err error) { fmt.Println(err) },
 	}
 
-	if err := c.Dial(); err != nil {
-		panic(err)
-	}
-
 	if err := c.Connect("120.92.17.85", 80); err != nil {
 		panic(err)
 	}
 
-	_, err := c.Write([]byte(`GET / HTTP/1.1
+	err := c.Write([]byte(`GET / HTTP/1.1
 	HOST: www.google.com
-	
+
 	`))
 	if err != nil {
 		panic(err)
 	}
-	var b = make([]byte, 1024)
-	c.Read(b)
-	fmt.Println(string(b[2:]))
 
+	b, err := c.Read()
+	fmt.Println(err)
+	fmt.Println(string(b))
+	b, err = c.Read()
+	fmt.Println(err)
+	fmt.Println(string(b))
 }

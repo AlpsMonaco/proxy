@@ -1,13 +1,9 @@
 package vpn
 
 import (
+	"errors"
 	"fmt"
 	"net"
-	"unsafe"
-
-	"github.com/AlpsMonaco/proxy/socks5"
-	"github.com/AlpsMonaco/proxy/stream"
-	"github.com/AlpsMonaco/proxy/util"
 )
 
 type Client struct {
@@ -15,54 +11,72 @@ type Client struct {
 	ServerPort  int
 	Key         []byte
 	ErrorHandle func(err error)
-	p           *stream.Packet
+	conn        net.Conn
+	p           *Packet
 }
 
-func (c *Client) Dial() error {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", c.ServerIP, c.ServerPort))
+func (c *Client) dial() (err error) {
+	c.conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", c.ServerIP, c.ServerPort))
 	if err != nil {
 		return err
 	}
-	c.p = &stream.Packet{
-		Conn: conn,
-	}
+
+	var p Packet
+	c.p = &p
+	p.Init()
 	return nil
 }
 
-func (c *Client) Write(b []byte) (int, error) {
-	return c.p.Write(b)
-}
+// func (c *Client) onError(err error) {
+// 	if c.ErrorHandle != nil {
+// 		c.ErrorHandle(err)
+// 	}
+// }
 
-func (c *Client) Read(b []byte) (int, error) {
-	return c.p.Read(b)
-}
-
-func (c *Client) onError(err error) {
-	if c.ErrorHandle != nil {
-		c.ErrorHandle(err)
+func (c *Client) Read() (b []byte, err error) {
+	err = c.p.Next(c.conn)
+	if err != nil {
+		return nil, err
 	}
+	return c.p.GetData(), nil
+}
+
+func (c *Client) Write(b []byte) (err error) {
+	if err = c.p.WriteSize(c.conn, len(b)); err != nil {
+		return err
+	}
+
+	_, err = c.conn.Write(b)
+	return err
 }
 
 func (c *Client) Connect(ip string, port int) error {
-	a := util.GetAlloctor(stream.PacketSize)
-	defer util.FreeAllocator(a)
-	// var n int
 	var err error
-
-	reqMsg := (*socks5.Socks5_RequestMessage)(a.GetPointer())
-	socks5.FillRequestMessage(reqMsg, 0, ip, port)
-	_, err = c.Write(a.GetByteSize(reqMsg.GetSize()))
-	if err != nil {
-		return err
-	}
-	_, err = c.Read(a.GetBytes())
-	if err != nil {
+	if err = c.dial(); err != nil {
 		return err
 	}
 
-	r := (*Protocol_Response)(unsafe.Pointer(&c.p.Body[0]))
-	fmt.Println(r.Code)
-	fmt.Println(r.MsgSize)
-	fmt.Println(string(r.Msg[:r.MsgSize]))
+	v := (*Verify)(c.p.GetPointer())
+	v.SetKey()
+	if err = c.p.WriteBuffer(c.conn, 16); err != nil {
+		return err
+	}
+
+	pr := (*ProxyRequest)(c.p.GetPointer())
+	pr.SetInfo(ip, port)
+	err = c.p.WriteBuffer(c.conn, pr.GetSize())
+	if err != nil {
+		return err
+	}
+
+	if err = c.p.Next(c.conn); err != nil {
+		return err
+	}
+
+	gr := (*GeneralResponse)(c.p.GetPointer())
+	if gr.Code != Success {
+		return errors.New(string(gr.Msg[:gr.MsgSize]))
+	}
+
 	return nil
 }

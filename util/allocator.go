@@ -17,6 +17,10 @@ func (a *Allocator) GetPointer() unsafe.Pointer {
 	return unsafe.Pointer(&a.b[0])
 }
 
+func (a *Allocator) GetPointerN(n int) unsafe.Pointer {
+	return unsafe.Pointer(&a.b[n])
+}
+
 func (a *Allocator) GetBytes() []byte {
 	return a.b
 }
