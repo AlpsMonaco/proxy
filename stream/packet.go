@@ -38,6 +38,7 @@ type Packet struct {
 
 	i      int
 	status byte
+	h      [2]byte
 
 	data uintptr
 	len  int
@@ -123,14 +124,16 @@ func (p *Packet) Read(b []byte) (n int, err error) {
 
 func (p *Packet) Write(b []byte) (n int, err error) {
 	p.i = len(b)
-	header := make([]byte, 2)
-	header[0] = byte(p.i & 0x00FF)
-	header[1] = byte((p.i & 0xFF00) >> 8)
+	p.h[0] = byte(p.i&0x00FF) + 2
+	p.h[1] = byte((p.i & 0xFF00) >> 8)
 
-	n, err = p.Conn.Write(header)
+	n, err = p.Conn.Write(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&p.h[0])),
+		Len:  2,
+		Cap:  2,
+	})))
 	if err != nil {
 		return
 	}
-
 	return p.Conn.Write(b)
 }

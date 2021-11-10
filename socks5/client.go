@@ -93,6 +93,8 @@ func parseSelectionMessage(vMsg *Socks5_SelectionMessage) error {
 	return nil
 }
 
+var FillRequestMessage = fillRequestMessage
+
 func fillRequestMessage(vMsg *Socks5_RequestMessage, sockcmd byte, addr string, port int) {
 	vMsg.Ver = SOCKS5_VERSION
 	vMsg.Cmd = sockcmd
@@ -123,6 +125,8 @@ func fillRequestMessage(vMsg *Socks5_RequestMessage, sockcmd byte, addr string, 
 func parseResponseMessage(rMsg *Socks5_ResponseMessage) {
 	// fmt.Println(rMsg)
 }
+
+var IsDomain = isDomain
 
 func isDomain(s string) bool {
 	for _, v := range []byte(s) {

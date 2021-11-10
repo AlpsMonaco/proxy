@@ -2,8 +2,10 @@ package vpn
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"time"
+	"unsafe"
 
 	"github.com/AlpsMonaco/proxy/socks5"
 	"github.com/AlpsMonaco/proxy/stream"
@@ -42,9 +44,9 @@ func (s *Server) newConn(conn net.Conn) {
 	defer closeConn(conn)
 	var a *util.Allocator = util.GetAlloctor(stream.PacketSize)
 	defer util.FreeAllocator(a)
-	var p *stream.Packet = &stream.Packet{
-		Conn: conn,
-	}
+	p := stream.GetPacket()
+	p.Conn = conn
+	defer stream.FreePacket(p)
 
 	var err error
 	_, err = p.Read(a.GetBytes())
@@ -53,8 +55,8 @@ func (s *Server) newConn(conn net.Conn) {
 		return
 	}
 
-	host := (*socks5.Socks5_RequestMessage)(a.GetPointer()).GetHost()
-	port := (*socks5.Socks5_RequestMessage)(a.GetPointer()).GetPort()
+	host := (*socks5.Socks5_RequestMessage)(unsafe.Pointer(&p.Body[0])).GetHost()
+	port := (*socks5.Socks5_RequestMessage)(unsafe.Pointer(&p.Body[0])).GetPort()
 	var remote net.Conn
 	remote, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), 10*time.Second)
 	resp := (*Protocol_Response)(a.GetPointer())
@@ -71,11 +73,50 @@ func (s *Server) newConn(conn net.Conn) {
 		s.onError(err)
 		return
 	}
-	s.beginProxy(conn, remote, a)
+	s.beginProxy(p, remote, a)
 }
 
 func (s *Server) beginProxy(client, remote net.Conn, a *util.Allocator) {
+	defer closeConn(client)
+	defer closeConn(remote)
+	var n int
+	var err error
 
+	go func() {
+		for {
+			n, err = remote.Read(a.GetBytes())
+			if n == 0 {
+				err = io.EOF
+			}
+			if err != nil {
+				s.onError(err)
+				return
+			}
+			n, err = client.Write(a.GetByteSize(n))
+			if err != nil {
+				s.onError(err)
+				return
+			}
+		}
+	}()
+
+	func() {
+		for {
+			n, err = client.Read(a.GetBytes())
+			if n == 0 {
+				err = io.EOF
+			}
+			if err != nil {
+				s.onError(err)
+				return
+			}
+			n, err = remote.Write(a.GetByteSize(n))
+			if err != nil {
+				s.onError(err)
+				return
+			}
+		}
+	}()
 }
 
 func closeConn(conn net.Conn) {

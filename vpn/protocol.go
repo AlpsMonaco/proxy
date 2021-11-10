@@ -24,5 +24,5 @@ func (r *Protocol_Response) FillMsg(s string) {
 }
 
 func (r *Protocol_Response) GetSize() int {
-	return int(r.MsgSize + 1)
+	return int(r.MsgSize + 2)
 }
