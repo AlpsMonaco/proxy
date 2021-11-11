@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"unsafe"
 )
@@ -162,4 +163,13 @@ func TestBinary(t *testing.T) {
 	for i := 0; i < size; i++ {
 		fmt.Printf("0x%02x\n", b[i])
 	}
+}
+
+func runtimeCaller(a ...interface{}) {
+	fmt.Println(runtime.Caller(1))
+	fmt.Println(a...)
+}
+
+func TestCaller(t *testing.T) {
+	runtimeCaller(1)
 }

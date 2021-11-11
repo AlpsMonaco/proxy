@@ -40,6 +40,9 @@ func (p *Packet) Next(r io.Reader) error {
 }
 
 func (p *Packet) GetData() []byte {
+	if p.header.Size < headerSize {
+		return nil
+	}
 	return p.a.GetBytes()[headerSize:p.header.Size]
 }
 

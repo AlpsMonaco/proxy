@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/AlpsMonaco/proxy/socks5"
+	"github.com/AlpsMonaco/proxy/util"
 	"github.com/AlpsMonaco/proxy/vpn"
 )
 
@@ -16,6 +17,7 @@ type Decorator struct {
 }
 
 func (d *Decorator) Write(b []byte) (int, error) {
+	util.LogTrace(b)
 	err := d.c.Write(b)
 	if err != nil {
 		return 0, err
@@ -29,6 +31,7 @@ func (d *Decorator) Read(b []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	util.LogTrace(nb)
 	copy(b, nb)
 	return len(nb), nil
 }

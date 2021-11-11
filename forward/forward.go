@@ -3,6 +3,7 @@ package forward
 import (
 	"errors"
 	"net"
+	"time"
 
 	"github.com/AlpsMonaco/proxy/util"
 )
@@ -117,6 +118,7 @@ func communicate(src net.Conn, dst net.Conn) error {
 }
 
 func closeConn(conn net.Conn) {
+	time.Sleep(5 * time.Second)
 	err := conn.Close()
 	if err != nil {
 		_ = conn.Close()

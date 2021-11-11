@@ -5,6 +5,8 @@ import (
 	"io"
 	"net"
 	"time"
+
+	"github.com/AlpsMonaco/proxy/util"
 )
 
 type Server struct {
@@ -81,12 +83,13 @@ func (s *Server) newConn(client net.Conn) {
 	}
 
 	go func() {
-		var buf = make([]byte, 64)
+		var buf = make([]byte, 512<<4)
 		for {
 			n, err := remote.Read(buf)
-			if n == 0 {
+			if n == 0 && err == nil {
 				err = io.EOF
 			}
+			util.LogTrace(buf[:n])
 			if err != nil {
 				s.onError(err)
 				return
@@ -110,7 +113,9 @@ func (s *Server) newConn(client net.Conn) {
 			s.onError(err)
 			return
 		}
-		_, err = remote.Write(p.GetData())
+		b := p.GetData()
+		util.LogTrace(b)
+		_, err = remote.Write(b)
 		if err != nil {
 			s.onError(err)
 			return
