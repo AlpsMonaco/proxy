@@ -1,5 +1,7 @@
 package stream
 
+import "net"
+
 const PackageBytes = 2
 const PackageSize = 1<<(PackageBytes*8) - 1
 const extendSize = 256
@@ -69,4 +71,50 @@ func (p *Packet) Extend(size int) {
 	newBuf := make([]byte, size)
 	copy(newBuf, p.buf)
 	p.buf = newBuf
+}
+
+type TinyBuffer struct {
+	net.Conn
+
+	b   []byte
+	old []byte
+}
+
+func (tb *TinyBuffer) Init() {
+	tb.b = make([]byte, 0xFF)
+	tb.old = make([]byte, 0xFF)
+}
+
+func (tb *TinyBuffer) GetBuffer() []byte {
+	return tb.b[1:]
+}
+
+func (tb *TinyBuffer) GetSize() byte {
+	return tb.b[0]
+}
+
+func (tb *TinyBuffer) SetSize(size byte) {
+	tb.b[0] = size
+}
+
+func (tb *TinyBuffer) Write(b []byte) (int, error) {
+	if len(b) > 0xFF {
+		panic("Stack Overflow")
+	}
+	tb.SetSize(byte(len(b)))
+	copy(tb.GetBuffer(), b)
+	_, err := tb.Write(tb.b[:tb.GetSize()])
+	return len(b), err
+}
+
+func (tb *TinyBuffer) Read(b []byte) (n int, err error) {
+	if len(b) > 0xFF {
+		panic("Stack Overflow")
+	}
+	for {
+		n, err = tb.Conn.Read(tb.GetBuffer())
+		if err != nil {
+			return n, err
+		}
+	}
 }

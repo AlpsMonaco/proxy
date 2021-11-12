@@ -52,6 +52,13 @@ func (c *Client) Write(b []byte) (err error) {
 
 	_, err = c.conn.Write(b)
 	return err
+	// var buffer = make([]byte, len(b)+2)
+	// buffer[0] = byte(len(b)&0x00FF) + 2
+	// buffer[1] = byte((len(b) & 0xFF00) >> 8)
+	// copy(buffer[2:], b)
+
+	// _, err = c.conn.Write(buffer)
+	// return err
 }
 
 func (c *Client) Connect(ip string, port int) error {

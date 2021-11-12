@@ -2,7 +2,10 @@ package vpn
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"testing"
+	"time"
 )
 
 var TestStreamData = []byte{10, 0, 10, 10, 10, 10, 10, 10, 10, 10, 6, 0, 6, 6, 6, 6, 5, 0, 5, 5, 5, 17, 0, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 3, 0, 1, 250, 250}
@@ -65,51 +68,116 @@ func TestPacket(t *testing.T) {
 	var p Packet
 	p.Init()
 
-	var ts TestStream
-	var err error
+	const port = 7777
+	l, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	assert(err)
 
-	err = p.Next(&ts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(p.header.Size)
-	fmt.Println(p.GetData())
+	go func() {
+		conn, err := l.Accept()
+		assert(err)
+		go func(conn net.Conn) {
+			conn = &connWithLog{
+				conn,
+			}
+			for {
+				err = p.Next(conn)
+				assert(err)
+				fmt.Println(p.GetData())
+			}
+		}(conn)
+	}()
 
-	p.SetBuffer([]byte{1, 2, 3})
-	p.WriteBuffer(&ts, 3)
-	err = p.Next(&ts)
-	if err != nil {
-		t.Fatal(err)
+	conn, err := net.Dial("tcp", ":"+strconv.Itoa(port))
+	assert(err)
+	var buf = make([]byte, 0xFFFF)
+
+	for i := 0; i < 0xFFFF; i++ {
+		buf[i] = byte(i % 0xFFFF)
 	}
-	fmt.Println(p.header.Size)
-	fmt.Println(p.GetData())
-	err = p.Next(&ts)
-	if err != nil {
-		t.Fatal(err)
+	conn = &connWithLog{
+		Conn: conn,
 	}
-	fmt.Println(p.header.Size)
-	fmt.Println(p.GetData())
-	err = p.Next(&ts)
+
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+	WritePacketBuffer(conn, 0xFF, &p, buf)
+
+}
+
+func WritePacketBuffer(conn net.Conn, size int, p *Packet, buf []byte) {
+	p.WriteSize(conn, size)
+	conn.Write(buf[:size])
+}
+
+func assert(err error) {
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
-	fmt.Println(p.header.Size)
-	fmt.Println(p.GetData())
-	err = p.Next(&ts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(p.header.Size)
-	fmt.Println(p.GetData())
-	err = p.Next(&ts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(p.header.Size)
-	fmt.Println(len(p.GetData()))
-	fmt.Println(p.GetData())
+}
+
+type connWithLog struct {
+	net.Conn
+}
+
+func (cl *connWithLog) Write(b []byte) (int, error) {
+	fmt.Println("send", b)
+	return cl.Conn.Write(b)
+}
+
+func (cl *connWithLog) Read(b []byte) (int, error) {
+	n, err := cl.Conn.Read(b)
+	fmt.Println("read", b[:n])
+	return n, err
 }
 
 func TestVPNServer(t *testing.T) {
+	const port = 7777
+	l, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	assert(err)
 
+	go func() {
+		conn, err := l.Accept()
+		assert(err)
+		go func(conn net.Conn) {
+			conn = &connWithLog{
+				conn,
+			}
+			var buf = make([]byte, 0xFF)
+			for {
+				_, err := conn.Read(buf)
+				assert(err)
+			}
+		}(conn)
+	}()
+
+	conn, err := net.Dial("tcp", ":"+strconv.Itoa(port))
+	assert(err)
+	var buf = make([]byte, 0xFFFF)
+
+	for i := 0; i < 0xFFFF; i++ {
+		buf[i] = byte(i % 0xFFFF)
+	}
+	conn = &connWithLog{
+		Conn: conn,
+	}
+
+	conn.Write(buf[:0xFF>>2-1])
+	conn.Write(buf[:0xFF>>2-2])
+	conn.Write(buf[:0xFF>>2-3])
+	conn.Write(buf[:0xFF>>2-4])
+	conn.Write(buf[:0xFF>>2-5])
+	conn.Write(buf[:0xFF>>2-6])
+	conn.Write(buf[:0xFF>>2-7])
+	conn.Write(buf[:0xFF>>2-8])
+	conn.Write(buf[:0xFF>>2-9])
+	conn.Write(buf[:0xFF>>2-10])
+	conn.Write(buf[:0xFF>>2-11])
+
+	time.Sleep(5 * time.Second)
 }

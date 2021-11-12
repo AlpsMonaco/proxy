@@ -62,7 +62,8 @@ func (p *Packet) SetBuffer(b []byte) {
 }
 
 func (p *Packet) WriteSize(w io.Writer, size int) error {
-	p.a.GetBytes()[0] = byte(size&0x00FF) + 2
+	size += 2
+	p.a.GetBytes()[0] = byte(size & 0x00FF)
 	p.a.GetBytes()[1] = byte((size & 0xFF00) >> 8)
 	_, err := w.Write(p.a.GetByteSize(headerSize))
 	return err
