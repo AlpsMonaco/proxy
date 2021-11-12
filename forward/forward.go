@@ -2,7 +2,7 @@ package forward
 
 import (
 	"errors"
-	"net"
+	"io"
 	"time"
 
 	"github.com/AlpsMonaco/proxy/util"
@@ -12,12 +12,12 @@ var ErrConnClosed = errors.New("remote connection is closed")
 var ErrRWSizeDismatch = errors.New("read size not equal to write size")
 
 type Forward struct {
-	SrcConn net.Conn
-	DstConn net.Conn
+	SrcConn io.ReadWriteCloser
+	DstConn io.ReadWriteCloser
 	OnError func(error)
 }
 
-func NewForward(dst net.Conn, src net.Conn, onError func(error)) *Forward {
+func NewForward(dst io.ReadWriteCloser, src io.ReadWriteCloser, onError func(error)) *Forward {
 	return &Forward{
 		SrcConn: src,
 		DstConn: dst,
@@ -63,28 +63,9 @@ func (f *Forward) onError(err error) {
 	}
 }
 
-// func communicate(src net.Conn, dst net.Conn) error {
-// 	defer func() {
-// 		closeConn(src)
-// 		closeConn(dst)
-// 	}()
-// 	var n int64
-// 	var err error
+const defaultNetBufSize = 0xFFFF
 
-// 	for {
-// 		n, err = io.Copy(dst, src)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if n == 0 {
-// 			return ErrNetClosed
-// 		}
-// 	}
-// }
-
-const defaultNetBufSize = 1 << 16
-
-func communicate(src net.Conn, dst net.Conn) error {
+func communicate(src io.ReadWriteCloser, dst io.ReadWriteCloser) error {
 	var a *util.Allocator = util.GetAlloctor(defaultNetBufSize)
 	defer func() {
 		util.FreeAllocator(a)
@@ -104,7 +85,9 @@ func communicate(src net.Conn, dst net.Conn) error {
 				break
 			}
 		} else {
-			err = ErrConnClosed
+			if err != nil {
+				err = ErrConnClosed
+			}
 			break
 		}
 
@@ -117,7 +100,7 @@ func communicate(src net.Conn, dst net.Conn) error {
 	return err
 }
 
-func closeConn(conn net.Conn) {
+func closeConn(conn io.ReadWriteCloser) {
 	time.Sleep(5 * time.Second)
 	err := conn.Close()
 	if err != nil {
