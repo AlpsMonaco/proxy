@@ -16,9 +16,10 @@ type Server struct {
 	Address string
 	Port    int
 	OnError func(error)
-	// isAllow Client Request
+
 	OnClientRequest func(rm *Socks5_RequestMessage) error
 	OnConnectRemote func(host string, port int) (net.Conn, error)
+	OnProxy         func(client, remote net.Conn)
 
 	listener net.Listener
 }
@@ -46,6 +47,12 @@ func (s *Server) Listen() error {
 		s.OnConnectRemote = func(host string, port int) (net.Conn, error) {
 			conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 			return conn, err
+		}
+	}
+
+	if s.OnProxy == nil {
+		s.OnProxy = func(client, remote net.Conn) {
+			forward.NewForward(client, remote, s.onError).Start()
 		}
 	}
 
@@ -122,7 +129,7 @@ func (s *Server) newConn(c net.Conn) {
 	}
 
 	util.FreeAllocator(a)
-	forward.NewForward(c, remote, s.onError).Start()
+	s.OnProxy(c, remote)
 }
 
 func parseVersionMessage(vMsg *Socks5_VersionMessage) error {

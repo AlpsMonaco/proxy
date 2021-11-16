@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/AlpsMonaco/proxy/stream"
 )
 
 var TestStreamData = []byte{10, 0, 10, 10, 10, 10, 10, 10, 10, 10, 6, 0, 6, 6, 6, 6, 5, 0, 5, 5, 5, 17, 0, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 3, 0, 1, 250, 250}
@@ -65,8 +67,7 @@ func (ts *TestStream) Write(b []byte) (int, error) {
 }
 
 func TestPacket(t *testing.T) {
-	var p Packet
-	p.Init()
+	var p stream.Packet
 
 	const port = 7777
 	l, err := net.Listen("tcp", ":"+strconv.Itoa(port))
@@ -75,14 +76,17 @@ func TestPacket(t *testing.T) {
 	go func() {
 		conn, err := l.Accept()
 		assert(err)
+		conn = &connWithLog{
+			conn,
+		}
+		p.Stream = conn
+
 		go func(conn net.Conn) {
-			conn = &connWithLog{
-				conn,
-			}
+
 			for {
-				err = p.Next(conn)
+				err = p.Next()
 				assert(err)
-				fmt.Println(p.GetData())
+				fmt.Println("body is", p.Data(), len(p.Data()))
 			}
 		}(conn)
 	}()
@@ -98,20 +102,68 @@ func TestPacket(t *testing.T) {
 		Conn: conn,
 	}
 
-	WritePacketBuffer(conn, 0xFF, &p, buf)
-	WritePacketBuffer(conn, 0xFF, &p, buf)
-	WritePacketBuffer(conn, 0xFF, &p, buf)
-	WritePacketBuffer(conn, 0xFF, &p, buf)
-	WritePacketBuffer(conn, 0xFF, &p, buf)
-	WritePacketBuffer(conn, 0xFF, &p, buf)
-	WritePacketBuffer(conn, 0xFF, &p, buf)
-	WritePacketBuffer(conn, 0xFF, &p, buf)
-	WritePacketBuffer(conn, 0xFF, &p, buf)
+	// conn.Write([]byte{14, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 13, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 11, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 0})
+	// time.Sleep(1000 * time.Millisecond)
+	// conn.Write([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 0, 0, 1, 2, 3})
+	// time.Sleep(1000 * time.Millisecond)
+	// conn.Write([]byte{4, 5, 6, 7, 7, 0, 0, 1, 2, 3, 4, 5, 6, 6, 0, 0, 1, 2, 3, 4, 5})
 
+	WritePacketBuffer(conn, 0xFF-1, &p, buf)
+	WritePacketBuffer(conn, 0xF-1, &p, buf)
+	WritePacketBuffer(conn, 0xFF-2, &p, buf)
+	WritePacketBuffer(conn, 0xF-2, &p, buf)
+	WritePacketBuffer(conn, 0xFF-3, &p, buf)
+	WritePacketBuffer(conn, 0xF-3, &p, buf)
+	WritePacketBuffer(conn, 0xFF-4, &p, buf)
+	WritePacketBuffer(conn, 0xF-4, &p, buf)
+	WritePacketBuffer(conn, 0xFF-5, &p, buf)
+	WritePacketBuffer(conn, 0xF-5, &p, buf)
+	WritePacketBuffer(conn, 0xFF-6, &p, buf)
+	WritePacketBuffer(conn, 0xF-6, &p, buf)
+	WritePacketBuffer(conn, 0xFF-7, &p, buf)
+	WritePacketBuffer(conn, 0xF-7, &p, buf)
+	WritePacketBuffer(conn, 0xFF-8, &p, buf)
+	WritePacketBuffer(conn, 0xF-8, &p, buf)
+	WritePacketBuffer(conn, 0xFF-9, &p, buf)
+	WritePacketBuffer(conn, 0xF-9, &p, buf)
+	WritePacketBuffer(conn, 0xFF-1, &p, buf)
+	WritePacketBuffer(conn, 0xF-1, &p, buf)
+	WritePacketBuffer(conn, 0xFF-2, &p, buf)
+	WritePacketBuffer(conn, 0xF-2, &p, buf)
+	WritePacketBuffer(conn, 0xFF-3, &p, buf)
+	WritePacketBuffer(conn, 0xF-3, &p, buf)
+	WritePacketBuffer(conn, 0xFF-8, &p, buf)
+	WritePacketBuffer(conn, 0xF-8, &p, buf)
+	WritePacketBuffer(conn, 0xFF-9, &p, buf)
+	WritePacketBuffer(conn, 0xF-9, &p, buf)
+	WritePacketBuffer(conn, 0xFF-1, &p, buf)
+	WritePacketBuffer(conn, 0xF-1, &p, buf)
+	WritePacketBuffer(conn, 0xFF-2, &p, buf)
+	WritePacketBuffer(conn, 0xF-2, &p, buf)
+	WritePacketBuffer(conn, 0xFF-3, &p, buf)
+	WritePacketBuffer(conn, 0xF-3, &p, buf)
+	WritePacketBuffer(conn, 0xFF-4, &p, buf)
+	WritePacketBuffer(conn, 0xF-4, &p, buf)
+	WritePacketBuffer(conn, 0xFF-5, &p, buf)
+	WritePacketBuffer(conn, 0xF-5, &p, buf)
+	WritePacketBuffer(conn, 0xFF-6, &p, buf)
+	WritePacketBuffer(conn, 0xF-6, &p, buf)
+	WritePacketBuffer(conn, 0xFF-7, &p, buf)
+	WritePacketBuffer(conn, 0xF-7, &p, buf)
+	WritePacketBuffer(conn, 0xFF-8, &p, buf)
+	WritePacketBuffer(conn, 0xF-8, &p, buf)
+	WritePacketBuffer(conn, 0xFF-9, &p, buf)
+	WritePacketBuffer(conn, 0xF-9, &p, buf)
+	WritePacketBuffer(conn, 0xF-8, &p, buf)
+
+	time.Sleep(3 * time.Second)
 }
 
-func WritePacketBuffer(conn net.Conn, size int, p *Packet, buf []byte) {
-	p.WriteSize(conn, size)
+func WritePacketBuffer(conn net.Conn, size int, p *stream.Packet, buf []byte) {
+	b := make([]byte, 2)
+	b[0] = byte(size & 0x00FF)
+	b[1] = byte(size >> 8)
+	conn.Write(b)
 	conn.Write(buf[:size])
 }
 

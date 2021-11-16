@@ -51,7 +51,8 @@ func (p *Packet) GetPointer() unsafe.Pointer {
 }
 
 func (p *Packet) WriteBuffer(w io.Writer, size int) error {
-	p.a.GetBytes()[0] = byte(size&0x00FF) + 2
+	size += 2
+	p.a.GetBytes()[0] = byte(size & 0x00FF)
 	p.a.GetBytes()[1] = byte((size & 0xFF00) >> 8)
 	_, err := w.Write(p.a.GetByteSize(size + headerSize))
 	return err
