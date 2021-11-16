@@ -1,6 +1,7 @@
 package util
 
 import (
+	"crypto/md5"
 	"errors"
 	"reflect"
 	"unsafe"
@@ -105,4 +106,10 @@ func SetBytes(p interface{}, offset int, new []byte) {
 //
 func GetAddr(p interface{}) uintptr {
 	return (*(*uintptr)(unsafe.Pointer(uintptr(unsafe.Pointer(&p)) + PtrSize)))
+}
+
+func GetMD5(b []byte) []byte {
+	h := md5.New()
+	h.Write(b)
+	return h.Sum(nil)
 }

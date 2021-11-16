@@ -1,23 +1,21 @@
 package vpn
 
-import "testing"
-
-func TestProxyRequest(t *testing.T) {
-	var pr ProxyRequest
-	pr.SetInfo("120.92.17.85", 80)
-	t.Log(pr.GetHost())
-	t.Log(pr.GetPort())
-	t.Log(pr.GetSize())
-	t.Log(pr)
-	pr.SetInfo("www.baidu.com", 80)
-	t.Log(pr.GetHost())
-	t.Log(pr.GetPort())
-	t.Log(pr.GetSize())
-	t.Log(pr)
-}
+import (
+	"math/rand"
+	"testing"
+	"time"
+)
 
 func TestGeneralResponse(t *testing.T) {
 	var gr GeneralResponse
-	gr.SetMsg("你好")
-	t.Log(gr.GetMsg())
+	gr.Set(Code_Success, "成功")
+	t.Log(gr.Code)
+	t.Log(gr.Get())
+	gr.Set(Code_Error, "存在错误")
+	t.Log(gr.Code)
+	t.Log(gr.Get())
+}
+
+func TestRandGenerate(t *testing.T) {
+	rand.Seed(time.Now().Unix())
 }
