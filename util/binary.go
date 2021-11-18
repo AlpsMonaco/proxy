@@ -3,6 +3,7 @@ package util
 import (
 	"crypto/md5"
 	"errors"
+	"fmt"
 	"reflect"
 	"unsafe"
 )
@@ -112,4 +113,10 @@ func GetMD5(b []byte) []byte {
 	h := md5.New()
 	h.Write(b)
 	return h.Sum(nil)
+}
+
+func GetMD5String(b []byte) string {
+	h := md5.New()
+	h.Write(b)
+	return fmt.Sprintf("%x", h.Sum(nil))
 }

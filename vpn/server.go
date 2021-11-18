@@ -1,5 +1,50 @@
 package vpn
 
+import (
+	"fmt"
+	"net"
+
+	"github.com/AlpsMonaco/proxy/stream"
+	"github.com/AlpsMonaco/proxy/util"
+)
+
+type Server struct {
+	Addr        string
+	Port        int
+	Key         []byte
+	ErrorHandle func(err error)
+}
+
+func (s *Server) Listen() error {
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.Addr, s.Port))
+	if err != nil {
+		return err
+	}
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return err
+		}
+		go s.newConn(conn)
+	}
+}
+
+func (s *Server) newConn(client net.Conn) {
+	a := util.GetAlloctor(stream.PacketSize)
+	defer util.FreeAllocator(a)
+	var sc = &SecureConn{
+		Conn:   client,
+		buffer: a.GetBytes(),
+	}
+
+}
+
+func (s *Server) onError(err error) {
+	if s.ErrorHandle != nil {
+		s.ErrorHandle(err)
+	}
+}
+
 // import (
 // 	"fmt"
 // 	"io"

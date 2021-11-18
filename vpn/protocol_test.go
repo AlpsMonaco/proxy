@@ -19,3 +19,9 @@ func TestGeneralResponse(t *testing.T) {
 func TestRandGenerate(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 }
+
+func TestProxyRequest(t *testing.T) {
+	var pr ProxyRequest
+	pr.SetRemoteInfo("118.98.90.87", 65534)
+	t.Log(pr.GetRemoteInfo())
+}

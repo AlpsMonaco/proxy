@@ -173,3 +173,8 @@ func runtimeCaller(a ...interface{}) {
 func TestCaller(t *testing.T) {
 	runtimeCaller(1)
 }
+
+func TestHttpRequest(t *testing.T) {
+	var data []byte = []byte("GET /api/request HTTP/1.1\r\nHost: www.gogames.com\r\n\r\n")
+	t.Log(data)
+}
