@@ -2,6 +2,7 @@ package stream
 
 import (
 	"io"
+	"unsafe"
 
 	"github.com/AlpsMonaco/proxy/util"
 )
@@ -31,6 +32,10 @@ func (p *Packet) Free() {
 	if p.a != nil {
 		util.FreeAllocator(p.a)
 	}
+}
+
+func (p *Packet) SetAllocator(a *util.Allocator) {
+	p.a = a
 }
 
 func (p *Packet) Next() error {
@@ -85,4 +90,15 @@ func (p *Packet) parse(b []byte) byte {
 		return packetExtra
 	}
 	return packetEqual
+}
+
+func (p *Packet) WriteData(b []byte) error {
+	size := len(b)
+	var err error
+	_, err = p.Stream.Write((*(*[2]byte)(unsafe.Pointer(&size)))[:2])
+	if err != nil {
+		return err
+	}
+	_, err = p.Stream.Write(b)
+	return err
 }

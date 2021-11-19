@@ -1,5 +1,80 @@
 package vpn
 
+import (
+	"errors"
+	"fmt"
+	"net"
+
+	"github.com/AlpsMonaco/proxy/stream"
+	"github.com/AlpsMonaco/proxy/util"
+)
+
+type Client struct {
+	IP          string
+	Port        int
+	Key         []byte
+	Cipher      CipherEnum
+	ErrorHandle func(err error)
+	encryptor   Encryptor
+	s           net.Conn
+}
+
+func (c *Client) dial() (err error) {
+	c.s, err = net.Dial("tcp", fmt.Sprintf("%s:%d", c.IP, c.Port))
+	return err
+}
+
+func (c *Client) Conn() net.Conn {
+	return c.s
+}
+
+func (c *Client) Connect(host string, port int) error {
+	// var n int
+	var err error
+	if c.s == nil {
+		err = c.dial()
+		if err != nil {
+			return err
+		}
+	}
+	c.encryptor = GetEncryptor(c.Cipher, c.Key)
+	a := util.GetAlloctor(stream.PacketSize)
+	defer util.FreeAllocator(a)
+	sc := NewSecureConn(c.s, c.encryptor, a.GetBytes())
+
+	(*Verify)(a.GetPointer()).SetData(10, []byte("0123456789"))
+	_, err = sc.Write(a.GetBytes()[:11])
+	if err != nil {
+		return err
+	}
+
+	_, err = sc.Read(a.GetBytes())
+	if err != nil {
+		return err
+	}
+	gr := (*GeneralResponse)(a.GetPointer())
+	if gr.Code != Code_Success {
+		return errors.New(gr.Get())
+	}
+
+	(*ProxyRequest)(a.GetPointer()).SetRemoteInfo(host, port)
+	_, err = sc.Write(a.GetByteSize(len(host) + 2))
+	if err != nil {
+		return err
+	}
+
+	_, err = sc.Read(a.GetBytes())
+	if err != nil {
+		return err
+	}
+	gr = (*GeneralResponse)(a.GetPointer())
+	if gr.Code != Code_Success {
+		return errors.New(gr.Get())
+	}
+
+	return nil
+}
+
 // import (
 // 	"errors"
 // 	"fmt"
@@ -27,11 +102,11 @@ package vpn
 // 	return nil
 // }
 
-// // func (c *Client) onError(err error) {
-// // 	if c.ErrorHandle != nil {
-// // 		c.ErrorHandle(err)
-// // 	}
-// // }
+func (c *Client) onError(err error) {
+	if c.ErrorHandle != nil {
+		c.ErrorHandle(err)
+	}
+}
 
 // func (c *Client) Read() (b []byte, err error) {
 // 	err = c.p.Next(c.conn)

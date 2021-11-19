@@ -19,7 +19,7 @@ type Server struct {
 
 	OnClientRequest func(rm *Socks5_RequestMessage) error
 	OnConnectRemote func(host string, port int) (net.Conn, error)
-	OnProxy         func(client, remote net.Conn)
+	OnProxy         func(client, remote net.Conn, s *Server)
 
 	listener net.Listener
 }
@@ -51,7 +51,7 @@ func (s *Server) Listen() error {
 	}
 
 	if s.OnProxy == nil {
-		s.OnProxy = func(client, remote net.Conn) {
+		s.OnProxy = func(client, remote net.Conn, s *Server) {
 			forward.NewForward(client, remote, s.onError).Start()
 		}
 	}
@@ -129,7 +129,7 @@ func (s *Server) newConn(c net.Conn) {
 	}
 
 	util.FreeAllocator(a)
-	s.OnProxy(c, remote)
+	s.OnProxy(c, remote, s)
 }
 
 func parseVersionMessage(vMsg *Socks5_VersionMessage) error {

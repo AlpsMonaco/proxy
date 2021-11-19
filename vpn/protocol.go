@@ -38,36 +38,40 @@ func (gr *GeneralResponse) Get() string {
 	return string(b)
 }
 
+func (gr *GeneralResponse) GetSize() int {
+	return int(1 + 1 + gr.MsgSize)
+}
+
 type Verify struct {
-	Va [256]byte
+	va [256]byte
 }
 
 func (v *Verify) SetData(size byte, b []byte) {
-	v.Va[12] = byte(size)
+	v.va[12] = byte(size)
 	var i byte
 	for i = 0; i < size; i++ {
-		v.Va[1+i] = b[i]
+		v.va[1+i] = b[i]
 	}
 }
 
 func (v *Verify) GetData() (size byte, b []byte) {
-	size = v.Va[0]
-	return size, v.Va[1 : 1+size]
+	size = v.va[0]
+	return size, v.va[1 : 1+size]
 }
 
 type ProxyRequest struct {
-	Va [256]byte
+	va [256]byte
 }
 
 func (pr *ProxyRequest) SetRemoteInfo(ip string, port int) {
-	pr.Va[0] = byte(len(ip))
-	copy(pr.Va[1:], []byte(ip))
-	pr.Va[pr.Va[0]+1] = byte(port & 0x00FF)
-	pr.Va[pr.Va[0]+2] = byte((port & 0xFF00) >> 8)
+	pr.va[0] = byte(len(ip))
+	copy(pr.va[1:], []byte(ip))
+	pr.va[pr.va[0]+1] = byte(port & 0x00FF)
+	pr.va[pr.va[0]+2] = byte((port & 0xFF00) >> 8)
 }
 
 func (pr *ProxyRequest) GetRemoteInfo() (ip string, port int) {
-	ip = string(pr.Va[1 : pr.Va[0]+1])
-	port = int(pr.Va[pr.Va[0]+1]) + int(pr.Va[pr.Va[0]+2])<<8
+	ip = string(pr.va[1 : pr.va[0]+1])
+	port = int(pr.va[pr.va[0]+1]) + int(pr.va[pr.va[0]+2])<<8
 	return
 }
