@@ -1,12 +1,8 @@
 package vpn
 
 import (
-	"errors"
 	"fmt"
 	"net"
-
-	"github.com/AlpsMonaco/proxy/stream"
-	"github.com/AlpsMonaco/proxy/util"
 )
 
 type Client struct {
@@ -29,48 +25,48 @@ func (c *Client) Conn() net.Conn {
 }
 
 func (c *Client) Connect(host string, port int) error {
-	// var n int
-	var err error
-	if c.s == nil {
-		err = c.dial()
-		if err != nil {
-			return err
-		}
-	}
-	c.encryptor = GetEncryptor(c.Cipher, c.Key)
-	a := util.GetAlloctor(stream.PacketSize)
-	defer util.FreeAllocator(a)
-	sc := NewSecureConn(c.s, c.encryptor, a.GetBytes())
+	// // var n int
+	// var err error
+	// if c.s == nil {
+	// 	err = c.dial()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+	// c.encryptor = GetEncryptor(c.Cipher, c.Key)
+	// a := util.GetAlloctor(stream.PacketSize)
+	// defer util.FreeAllocator(a)
+	// sc := NewSecureConn(c.s, c.encryptor, a.GetBytes())
 
-	(*Verify)(a.GetPointer()).SetData(10, []byte("0123456789"))
-	_, err = sc.Write(a.GetBytes()[:11])
-	if err != nil {
-		return err
-	}
+	// (*Verify)(a.GetPointer()).SetData(10, []byte("0123456789"))
+	// _, err = sc.Write(a.GetBytes()[:11])
+	// if err != nil {
+	// 	return err
+	// }
 
-	_, err = sc.Read(a.GetBytes())
-	if err != nil {
-		return err
-	}
-	gr := (*GeneralResponse)(a.GetPointer())
-	if gr.Code != Code_Success {
-		return errors.New(gr.Get())
-	}
+	// _, err = sc.Read(a.GetBytes())
+	// if err != nil {
+	// 	return err
+	// }
+	// gr := (*GeneralResponse)(a.GetPointer())
+	// if gr.Code != Code_Success {
+	// 	return errors.New(gr.Get())
+	// }
 
-	(*ProxyRequest)(a.GetPointer()).SetRemoteInfo(host, port)
-	_, err = sc.Write(a.GetByteSize(len(host) + 2))
-	if err != nil {
-		return err
-	}
+	// (*ProxyRequest)(a.GetPointer()).SetRemoteInfo(host, port)
+	// _, err = sc.Write(a.GetByteSize(len(host) + 2))
+	// if err != nil {
+	// 	return err
+	// }
 
-	_, err = sc.Read(a.GetBytes())
-	if err != nil {
-		return err
-	}
-	gr = (*GeneralResponse)(a.GetPointer())
-	if gr.Code != Code_Success {
-		return errors.New(gr.Get())
-	}
+	// _, err = sc.Read(a.GetBytes())
+	// if err != nil {
+	// 	return err
+	// }
+	// gr = (*GeneralResponse)(a.GetPointer())
+	// if gr.Code != Code_Success {
+	// 	return errors.New(gr.Get())
+	// }
 
 	return nil
 }

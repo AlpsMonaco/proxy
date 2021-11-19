@@ -177,4 +177,6 @@ func TestCaller(t *testing.T) {
 func TestHttpRequest(t *testing.T) {
 	var data []byte = []byte("GET /api/request HTTP/1.1\r\nHost: www.gogames.com\r\n\r\n")
 	t.Log(data)
+	var b []byte
+	t.Log(b == nil)
 }

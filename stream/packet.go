@@ -3,8 +3,6 @@ package stream
 import (
 	"io"
 	"unsafe"
-
-	"github.com/AlpsMonaco/proxy/util"
 )
 
 const PacketBytes = 2
@@ -13,11 +11,9 @@ const PacketSize = 1<<(PacketBytes*8) - 1
 type Stream = io.ReadWriter
 
 type Packet struct {
-	Stream
-	a *util.Allocator
-
-	BodySize int
-	FullSize int
+	b        []byte
+	bodySize int
+	fullSize int
 	bufSize  int
 	cursor   int
 }
@@ -28,28 +24,25 @@ const (
 	packetExtra
 )
 
-func (p *Packet) Free() {
-	if p.a != nil {
-		util.FreeAllocator(p.a)
+func NewPacket() *Packet {
+	return &Packet{
+		b: make([]byte, PacketSize),
 	}
 }
 
-func (p *Packet) SetAllocator(a *util.Allocator) {
-	p.a = a
+func (p *Packet) SetBuffer(b []byte) {
+	p.b = b
 }
 
-func (p *Packet) Next() error {
-	if p.a == nil {
-		p.a = util.GetAlloctor(PacketSize)
-	}
+func (p *Packet) Next(stream Stream) error {
 	var status byte
-	p.cursor = p.cursor + p.FullSize
+	p.cursor = p.cursor + p.fullSize
 	if p.cursor < p.bufSize {
-		status = p.parse(p.a.GetBytes()[p.cursor:p.bufSize])
+		status = p.parse(p.b[p.cursor:p.bufSize])
 		if status != packetShort {
 			return nil
 		}
-		copy(p.a.GetBytes(), p.a.GetBytes()[p.cursor:p.bufSize])
+		copy(p.b, p.b[p.cursor:p.bufSize])
 		p.bufSize = p.bufSize - p.cursor
 		p.cursor = 0
 	} else {
@@ -60,12 +53,13 @@ func (p *Packet) Next() error {
 	var n int
 	var err error
 	for {
-		n, err = p.Read(p.a.Shift(p.bufSize))
+		// n, err = stream.Read(p.a.Shift(p.bufSize))
+		n, err = stream.Read(p.b[p.bufSize:])
 		if err != nil {
 			return err
 		}
 		p.bufSize += n
-		status = p.parse(p.a.GetByteSize(p.bufSize))
+		status = p.parse(p.b[:p.bufSize])
 		if status == packetShort {
 			continue
 		}
@@ -74,31 +68,39 @@ func (p *Packet) Next() error {
 }
 
 func (p *Packet) Data() []byte {
-	return p.a.GetBytes()[p.cursor+2 : p.cursor+p.FullSize]
+	return p.b[p.cursor+2 : p.cursor+p.fullSize]
+}
+
+func (p *Packet) BodySize() int {
+	return p.bodySize
+}
+
+func (p *Packet) FullSize() int {
+	return p.fullSize
 }
 
 func (p *Packet) parse(b []byte) byte {
 	if len(b) < PacketBytes {
 		return packetShort
 	}
-	p.BodySize = int(b[0]) + int(b[1])<<8
-	p.FullSize = p.BodySize + 2
-	if len(b) < p.FullSize {
+	p.bodySize = int(b[0]) + int(b[1])<<8
+	p.fullSize = p.bodySize + 2
+	if len(b) < p.fullSize {
 		return packetShort
 	}
-	if len(b) > p.FullSize {
+	if len(b) > p.fullSize {
 		return packetExtra
 	}
 	return packetEqual
 }
 
-func (p *Packet) WriteData(b []byte) error {
+func (p *Packet) WriteStream(stream Stream, b []byte) error {
 	size := len(b)
 	var err error
-	_, err = p.Stream.Write((*(*[2]byte)(unsafe.Pointer(&size)))[:2])
+	_, err = stream.Write((*(*[2]byte)(unsafe.Pointer(&size)))[:2])
 	if err != nil {
 		return err
 	}
-	_, err = p.Stream.Write(b)
+	_, err = stream.Write(b)
 	return err
 }
