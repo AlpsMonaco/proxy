@@ -63,7 +63,7 @@ func (f *Forward) onError(err error) {
 	}
 }
 
-const defaultNetBufSize = 0xFFFF
+const defaultNetBufSize = 0xFFFF >> 1
 
 func communicate(src io.ReadWriteCloser, dst io.ReadWriteCloser) error {
 	var a *util.Allocator = util.GetAlloctor(defaultNetBufSize)

@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/AlpsMonaco/proxy/forward"
 	"github.com/AlpsMonaco/proxy/util"
 )
 
@@ -18,8 +17,7 @@ type Server struct {
 	OnError func(error)
 
 	OnClientRequest func(rm *Socks5_RequestMessage) error
-	OnConnectRemote func(host string, port int) (net.Conn, error)
-	OnProxy         func(client, remote net.Conn, s *Server)
+	OnConnectRemote func(host string, port int) (agent, error)
 
 	listener net.Listener
 }
@@ -44,15 +42,12 @@ func (s *Server) Listen() error {
 	}
 
 	if s.OnConnectRemote == nil {
-		s.OnConnectRemote = func(host string, port int) (net.Conn, error) {
+		s.OnConnectRemote = func(host string, port int) (agent, error) {
 			conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
-			return conn, err
-		}
-	}
-
-	if s.OnProxy == nil {
-		s.OnProxy = func(client, remote net.Conn, s *Server) {
-			forward.NewForward(client, remote, s.onError).Start()
+			if err != nil {
+				return nil, err
+			}
+			return &direct{conn}, nil
 		}
 	}
 
@@ -112,7 +107,7 @@ func (s *Server) newConn(c net.Conn) {
 		return
 	}
 
-	remote, err := s.OnConnectRemote(rMsg.GetHost(), rMsg.GetPort())
+	agent, err := s.OnConnectRemote(rMsg.GetHost(), rMsg.GetPort())
 	if err != nil {
 		s.onError(err)
 		closeConn(c)
@@ -129,7 +124,7 @@ func (s *Server) newConn(c net.Conn) {
 	}
 
 	util.FreeAllocator(a)
-	s.OnProxy(c, remote, s)
+	agent.Proxy(c)
 }
 
 func parseVersionMessage(vMsg *Socks5_VersionMessage) error {

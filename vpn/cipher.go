@@ -40,7 +40,7 @@ func NewSecureConn(conn net.Conn, encryptor Encryptor, buffer []byte) *secureCon
 	sc.Conn = conn
 	sc.encryptor = encryptor
 	sc.buffer = buffer
-	sc.p.SetBuffer(buffer)
+	// sc.p.SetBuffer(buffer)
 	return sc
 }
 

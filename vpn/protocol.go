@@ -11,6 +11,11 @@ const (
 	Code_Error
 )
 
+type HelloMessage struct {
+	msgSize byte
+	msg     [255]byte
+}
+
 type GeneralResponse struct {
 	Code    byte
 	MsgSize byte

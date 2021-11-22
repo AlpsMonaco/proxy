@@ -13,10 +13,6 @@ func (a *Allocator) Alloc(size int) {
 	a.b = make([]byte, size)
 }
 
-func (a *Allocator) SetBuffer(b []byte) {
-	a.b = b
-}
-
 func (a *Allocator) GetPointer() unsafe.Pointer {
 	return unsafe.Pointer(&a.b[0])
 }

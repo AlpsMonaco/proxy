@@ -79,12 +79,12 @@ package vpn
 // 		conn = &connWithLog{
 // 			conn,
 // 		}
-// 		p.Stream = conn
+// 		// p.Stream = conn
 
 // 		go func(conn net.Conn) {
 
 // 			for {
-// 				err = p.Next()
+// 				err = p.Next(conn)
 // 				assert(err)
 // 				fmt.Println("body is", p.Data(), len(p.Data()))
 // 			}
@@ -167,11 +167,11 @@ package vpn
 // 	conn.Write(buf[:size])
 // }
 
-// func assert(err error) {
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// }
+// // func assert(err error) {
+// // 	if err != nil {
+// // 		panic(err)
+// // 	}
+// // }
 
 // type connWithLog struct {
 // 	net.Conn

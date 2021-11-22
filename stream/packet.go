@@ -2,6 +2,7 @@ package stream
 
 import (
 	"io"
+	"sync"
 	"unsafe"
 )
 
@@ -24,17 +25,27 @@ const (
 	packetExtra
 )
 
-func NewPacket() *Packet {
-	return &Packet{
-		b: make([]byte, PacketSize),
-	}
+var packetPool sync.Pool = sync.Pool{
+	New: func() interface{} {
+		return &Packet{
+			b: make([]byte, PacketSize),
+		}
+	},
 }
 
-func (p *Packet) SetBuffer(b []byte) {
-	p.b = b
+func NewPacket() *Packet {
+	return packetPool.Get().(*Packet)
+}
+
+func FreePacket(packet *Packet) {
+	packetPool.Put(packet)
 }
 
 func (p *Packet) Next(stream Stream) error {
+	if p.b == nil {
+		p.b = make([]byte, PacketSize)
+	}
+
 	var status byte
 	p.cursor = p.cursor + p.fullSize
 	if p.cursor < p.bufSize {
@@ -53,7 +64,6 @@ func (p *Packet) Next(stream Stream) error {
 	var n int
 	var err error
 	for {
-		// n, err = stream.Read(p.a.Shift(p.bufSize))
 		n, err = stream.Read(p.b[p.bufSize:])
 		if err != nil {
 			return err
