@@ -17,7 +17,7 @@ type Server struct {
 	OnError func(error)
 
 	OnClientRequest func(rm *Socks5_RequestMessage) error
-	OnConnectRemote func(host string, port int) (agent, error)
+	OnConnectRemote func(host string, port int) (ProxyConn, error)
 
 	listener net.Listener
 }
@@ -42,7 +42,7 @@ func (s *Server) Listen() error {
 	}
 
 	if s.OnConnectRemote == nil {
-		s.OnConnectRemote = func(host string, port int) (agent, error) {
+		s.OnConnectRemote = func(host string, port int) (ProxyConn, error) {
 			conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 			if err != nil {
 				return nil, err

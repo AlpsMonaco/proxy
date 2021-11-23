@@ -1,8 +1,13 @@
 package vpn
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
+
+	"github.com/AlpsMonaco/proxy/stream"
+	"github.com/AlpsMonaco/proxy/util"
 )
 
 type Client struct {
@@ -15,150 +20,142 @@ type Client struct {
 	s           net.Conn
 }
 
+func (c *Client) GetCipher() Encryptor {
+	return c.encryptor
+}
+
 func (c *Client) dial() (err error) {
 	c.s, err = net.Dial("tcp", fmt.Sprintf("%s:%d", c.IP, c.Port))
+	c.encryptor = GetEncryptor(c.Cipher, c.Key)
 	return err
+}
+
+func (c *Client) Connect(host string, port int) error {
+	var err error
+	err = c.dial()
+	if err != nil {
+		return err
+	}
+
+	var allocator *util.Allocator = util.GetAlloctor(256)
+	defer util.FreeAllocator(allocator)
+	var n int
+
+	(*HelloMessage)(allocator.GetPointer()).SetMsg(masquerade)
+
+	_, err = c.s.Write(allocator.GetBytes())
+	if err != nil {
+		return err
+	}
+	_, err = c.s.Read(allocator.GetBytes())
+	if err != nil {
+		return err
+	}
+
+	// fmt.Println(allocator.GetByteSize(n))
+	n, err = c.encryptor.Encrypt([]byte(masquerade), allocator.GetBytes())
+	if err != nil {
+		return err
+	}
+
+	_, err = c.s.Write(allocator.GetByteSize(n))
+	if err != nil {
+		return err
+	}
+
+	(*ProxyRequest)(allocator.GetPointer()).SetRemoteInfo(host, port)
+	_, err = c.s.Write(allocator.GetByteSize(256))
+	if err != nil {
+		return err
+	}
+
+	_, err = c.s.Read(allocator.GetBytes())
+	if err != nil {
+		return err
+	}
+
+	if (*GeneralResponse)(allocator.GetPointer()).code != Code_Success {
+		return errors.New((*GeneralResponse)(allocator.GetPointer()).Get())
+	} else {
+		// fmt.Println((*GeneralResponse)(allocator.GetPointer()).Get())
+	}
+
+	return nil
 }
 
 func (c *Client) Conn() net.Conn {
 	return c.s
 }
 
-func (c *Client) Connect(host string, port int) error {
-	// // var n int
-	// var err error
-	// if c.s == nil {
-	// 	err = c.dial()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-	// c.encryptor = GetEncryptor(c.Cipher, c.Key)
-	// a := util.GetAlloctor(stream.PacketSize)
-	// defer util.FreeAllocator(a)
-	// sc := NewSecureConn(c.s, c.encryptor, a.GetBytes())
+func (c *Client) Proxy(client net.Conn) {
+	var allocator *util.Allocator = util.GetAlloctor(stream.PacketSize)
+	defer util.FreeAllocator(allocator)
+	var packet *stream.Packet = stream.NewPacket()
+	defer stream.FreePacket(packet)
 
-	// (*Verify)(a.GetPointer()).SetData(10, []byte("0123456789"))
-	// _, err = sc.Write(a.GetBytes()[:11])
-	// if err != nil {
-	// 	return err
-	// }
+	defer closeConn(c.s)
+	defer closeConn(client)
+	var n int
+	var err error
 
-	// _, err = sc.Read(a.GetBytes())
-	// if err != nil {
-	// 	return err
-	// }
-	// gr := (*GeneralResponse)(a.GetPointer())
-	// if gr.Code != Code_Success {
-	// 	return errors.New(gr.Get())
-	// }
+	client = &debugconn{client, "socks5_client"}
+	c.s = &debugconn{c.s, "vpn_server"}
 
-	// (*ProxyRequest)(a.GetPointer()).SetRemoteInfo(host, port)
-	// _, err = sc.Write(a.GetByteSize(len(host) + 2))
-	// if err != nil {
-	// 	return err
-	// }
+	var clientBuffer = allocator.GetByteSize(stream.PacketSize - (1 << 8))
+	var serverBuffer = allocator.GetBytes()
 
-	// _, err = sc.Read(a.GetBytes())
-	// if err != nil {
-	// 	return err
-	// }
-	// gr = (*GeneralResponse)(a.GetPointer())
-	// if gr.Code != Code_Success {
-	// 	return errors.New(gr.Get())
-	// }
+	go func() {
+		defer closeConn(client)
+		defer closeConn(c.s)
+		for {
+			n, err = client.Read(clientBuffer)
+			if n == 0 && err == nil {
+				err = io.EOF
+			}
+			if err != nil {
+				c.onError(err)
+				return
+			}
+			n, err = c.encryptor.Encrypt(clientBuffer[:n], serverBuffer)
+			if err != nil {
+				c.onError(err)
+				return
+			}
+			// _, err = c.s.Write(serverBuffer[:n])
+			err = packet.WriteStream(c.s, serverBuffer[:n])
+			if err != nil {
+				c.onError(err)
+				return
+			}
+		}
 
-	return nil
+	}()
+
+	func() {
+		defer closeConn(client)
+		defer closeConn(c.s)
+		for {
+			err = packet.Next(c.s)
+			if err != nil {
+				c.onError(err)
+				return
+			}
+			n, err = c.encryptor.Decrypt(packet.Data(), serverBuffer)
+			if err != nil {
+				c.onError(err)
+				return
+			}
+			_, err = client.Write(serverBuffer[:n])
+			if err != nil {
+				c.onError(err)
+				return
+			}
+		}
+	}()
 }
-
-// import (
-// 	"errors"
-// 	"fmt"
-// 	"net"
-// )
-
-// type Client struct {
-// 	ServerIP    string
-// 	ServerPort  int
-// 	Key         []byte
-// 	ErrorHandle func(err error)
-// 	conn        net.Conn
-// 	p           *Packet
-// }
-
-// func (c *Client) dial() (err error) {
-// 	c.conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", c.ServerIP, c.ServerPort))
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	var p Packet
-// 	c.p = &p
-// 	p.Init()
-// 	return nil
-// }
 
 func (c *Client) onError(err error) {
 	if c.ErrorHandle != nil {
 		c.ErrorHandle(err)
 	}
 }
-
-// func (c *Client) Read() (b []byte, err error) {
-// 	err = c.p.Next(c.conn)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return c.p.GetData(), nil
-// }
-
-// func (c *Client) GetConn() net.Conn {
-// 	return c.conn
-// }
-
-// func (c *Client) Write(b []byte) (err error) {
-// 	if err = c.p.WriteSize(c.conn, len(b)); err != nil {
-// 		return err
-// 	}
-
-// 	_, err = c.conn.Write(b)
-// 	return err
-// 	// var buffer = make([]byte, len(b)+2)
-// 	// buffer[0] = byte(len(b)&0x00FF) + 2
-// 	// buffer[1] = byte((len(b) & 0xFF00) >> 8)
-// 	// copy(buffer[2:], b)
-
-// 	// _, err = c.conn.Write(buffer)
-// 	// return err
-// }
-
-// func (c *Client) Connect(ip string, port int) error {
-// 	var err error
-// 	if err = c.dial(); err != nil {
-// 		return err
-// 	}
-
-// 	v := (*Verify)(c.p.GetPointer())
-// 	v.SetKey()
-// 	if err = c.p.WriteBuffer(c.conn, 16); err != nil {
-// 		return err
-// 	}
-
-// 	pr := (*ProxyRequest)(c.p.GetPointer())
-// 	pr.SetInfo(ip, port)
-// 	err = c.p.WriteBuffer(c.conn, pr.GetSize())
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	if err = c.p.Next(c.conn); err != nil {
-// 		return err
-// 	}
-
-// 	gr := (*GeneralResponse)(c.p.GetPointer())
-// 	if gr.Code != Success {
-// 		return errors.New(string(gr.Msg[:gr.MsgSize]))
-// 	}
-
-// 	return nil
-// }

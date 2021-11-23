@@ -2,7 +2,11 @@ package vpn
 
 import (
 	"fmt"
+	"io"
 	"net"
+
+	"github.com/AlpsMonaco/proxy/stream"
+	"github.com/AlpsMonaco/proxy/util"
 )
 
 type CipherEnum byte
@@ -38,54 +42,142 @@ func (s *Server) Listen() error {
 }
 
 func (s *Server) newConn(client net.Conn) {
-	// defer closeConn(client)
-	// a := util.GetAlloctor(stream.PacketSize)
-	// defer util.FreeAllocator(a)
-	// sc := secureConn{
-	// 	Conn:      client,
-	// 	encryptor: s.encryptor,
-	// 	buffer:    a.GetBytes(),
-	// }
-	// var err error
+	defer closeConn(client)
 
-	// _, err = sc.Read(a.GetBytes())
-	// if err != nil {
-	// 	s.onError(err)
-	// 	return
-	// }
-	// fmt.Println((*Verify)(a.GetPointer()).GetData())
+	var n int
+	var err error
+	allocator := util.GetAlloctor(256)
+	defer util.FreeAllocator(allocator)
 
-	// (*GeneralResponse)(a.GetPointer()).Set(Code_Success, "success")
-	// _, err = sc.Write(a.GetByteSize((*GeneralResponse)(a.GetPointer()).GetSize()))
-	// if err != nil {
-	// 	s.onError(err)
-	// 	return
-	// }
+	_, err = client.Read(allocator.GetBytes())
+	if err != nil {
+		s.onError(err)
+		return
+	}
+	// helloMessage := (*HelloMessage)(allocator.GetPointer())
+	// hello message print
+	// fmt.Println(helloMessage.GetMsg())
 
-	// _, err = sc.Read(a.GetBytes())
-	// if err != nil {
-	// 	s.onError(err)
-	// 	return
-	// }
-	// pr := (*ProxyRequest)(a.GetPointer())
-	// ip, port := pr.GetRemoteInfo()
+	generalResponse := (*GeneralResponse)(allocator.GetPointer())
+	generalResponse.Set(Code_Success, "connected")
+	_, err = client.Write(allocator.GetByteSize(generalResponse.GetSize()))
+	if err != nil {
+		s.onError(err)
+		return
+	}
 
-	// var remote net.Conn
-	// remote, err = net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ip, port), 10*time.Second)
-	// if err != nil {
-	// 	(*GeneralResponse)(a.GetPointer()).Set(Code_Error, "dial to remote failed")
-	// 	s.onError(err)
-	// 	return
-	// }
-	// defer closeConn(remote)
+	n, err = client.Read(allocator.GetBytes())
+	if err != nil {
+		s.onError(err)
+		return
+	}
 
-	// (*GeneralResponse)(a.GetPointer()).Set(Code_Success, "success")
-	// _, err = sc.Write(a.GetByteSize((*GeneralResponse)(a.GetPointer()).GetSize()))
-	// if err != nil {
-	// 	s.onError(err)
-	// 	return
-	// }
-	// s.beginProxy(client, remote, a)
+	n, err = s.encryptor.Decrypt(allocator.GetByteSize(n), allocator.GetBytes())
+	if err != nil {
+		s.onError(err)
+		return
+	}
+	// fmt.Println(allocator.GetByteSize(n))
+
+	s.acceptClient(client)
+}
+
+func (s *Server) acceptClient(client net.Conn) {
+	var allocator *util.Allocator = util.GetAlloctor(stream.PacketSize)
+	defer util.FreeAllocator(allocator)
+
+	n, err := client.Read(allocator.GetBytes())
+	if err != nil {
+		s.onError(err)
+		return
+	}
+
+	_, err = s.encryptor.Decrypt(allocator.GetByteSize(n), allocator.GetBytes())
+	if err != nil {
+		s.onError(err)
+		return
+	}
+
+	proxyRequest := (*ProxyRequest)(allocator.GetPointer())
+	remoteIP, remotePort := proxyRequest.GetRemoteInfo()
+	var remote net.Conn
+	var generalResponse *GeneralResponse = (*GeneralResponse)(allocator.GetPointer())
+
+	remote, err = net.Dial("tcp", fmt.Sprintf("%s:%d", remoteIP, remotePort))
+	if err != nil {
+		generalResponse.Set(Code_Error, "connect failed")
+		s.onError(err)
+		closeConn(client)
+		_, _ = client.Write(allocator.GetByteSize(generalResponse.GetSize()))
+		return
+	}
+	generalResponse.Set(Code_Success, "let's begin")
+	_, err = client.Write(allocator.GetByteSize(generalResponse.GetSize()))
+	if err != nil {
+		closeConn(client)
+		closeConn(remote)
+		s.onError(err)
+		return
+	}
+
+	var packet *stream.Packet = stream.NewPacket()
+	defer stream.FreePacket(packet)
+
+	var remoteBuffer = allocator.GetByteSize(stream.PacketSize - (1 << 8))
+	var clientBuffer []byte = allocator.GetBytes()
+
+	client = &debugconn{client, "vpn_client"}
+	remote = &debugconn{remote, "remote_host"}
+
+	go func() {
+		defer closeConn(client)
+		defer closeConn(remote)
+
+		for {
+			n, err = remote.Read(remoteBuffer)
+			if n == 0 && err == nil {
+				err = io.EOF
+			}
+			if err != nil {
+				s.onError(err)
+				return
+			}
+			n, err = s.encryptor.Encrypt(remoteBuffer[:n], clientBuffer)
+			if err != nil {
+				s.onError(err)
+				return
+			}
+			err = packet.WriteStream(client, clientBuffer[:n])
+			if err != nil {
+				s.onError(err)
+				return
+			}
+		}
+	}()
+
+	func() {
+		defer closeConn(client)
+		defer closeConn(remote)
+
+		for {
+			err = packet.Next(client)
+			if err != nil {
+				s.onError(err)
+				return
+			}
+			n, err = s.encryptor.Decrypt(packet.Data(), clientBuffer)
+			if err != nil {
+				s.onError(err)
+				return
+			}
+			n, err = remote.Write(clientBuffer[:n])
+			if err != nil {
+				s.onError(err)
+				return
+			}
+		}
+	}()
+
 }
 
 // func (s *Server) beginProxy(client, remote net.Conn, a *util.Allocator) {

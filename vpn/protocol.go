@@ -1,5 +1,10 @@
 package vpn
 
+import (
+	"fmt"
+	"net"
+)
+
 /*
 protocol part of vpn.
 */
@@ -16,35 +21,47 @@ type HelloMessage struct {
 	msg     [255]byte
 }
 
+func (hm *HelloMessage) SetMsg(msg string) {
+	hm.msgSize = 0
+	for i := range []byte(msg) {
+		hm.msg[i] = msg[i]
+		hm.msgSize++
+	}
+}
+
+func (hm *HelloMessage) GetMsg() string {
+	return string(hm.msg[:hm.msgSize])
+}
+
 type GeneralResponse struct {
-	Code    byte
-	MsgSize byte
-	Msg     [64]byte
+	code    byte
+	msgSize byte
+	msg     [256]byte
 }
 
 func (gr *GeneralResponse) Set(code byte, msg string) {
-	gr.MsgSize = 0
-	gr.Code = code
+	gr.msgSize = 0
+	gr.code = code
 	for i := 0; i < len(msg); i++ {
-		gr.MsgSize++
-		gr.Msg[i] = msg[i]
+		gr.msgSize++
+		gr.msg[i] = msg[i]
 	}
 }
 
 func (gr *GeneralResponse) Get() string {
-	if gr.MsgSize == 0 {
+	if gr.msgSize == 0 {
 		return ""
 	}
-	b := make([]byte, gr.MsgSize)
+	b := make([]byte, gr.msgSize)
 	var i byte
-	for i = 0; i < gr.MsgSize; i++ {
-		b[i] = gr.Msg[i]
+	for i = 0; i < gr.msgSize; i++ {
+		b[i] = gr.msg[i]
 	}
 	return string(b)
 }
 
 func (gr *GeneralResponse) GetSize() int {
-	return int(1 + 1 + gr.MsgSize)
+	return int(1 + 1 + gr.msgSize)
 }
 
 type Verify struct {
@@ -78,5 +95,22 @@ func (pr *ProxyRequest) SetRemoteInfo(ip string, port int) {
 func (pr *ProxyRequest) GetRemoteInfo() (ip string, port int) {
 	ip = string(pr.va[1 : pr.va[0]+1])
 	port = int(pr.va[pr.va[0]+1]) + int(pr.va[pr.va[0]+2])<<8
+	return
+}
+
+type debugconn struct {
+	net.Conn
+	Name string
+}
+
+func (dc *debugconn) Read(b []byte) (n int, err error) {
+	n, err = dc.Conn.Read(b)
+	fmt.Printf("[%s]Read %d %v %s\n", dc.Name, n, b[:n], string(b[:n]))
+	return
+}
+
+func (dc *debugconn) Write(b []byte) (n int, err error) {
+	n, err = dc.Conn.Write(b)
+	fmt.Printf("[%s]Write %d %v %s\n", dc.Name, n, b[:n], string(b[:n]))
 	return
 }

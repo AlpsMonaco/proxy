@@ -7,7 +7,7 @@ import (
 	"github.com/AlpsMonaco/proxy/forward"
 )
 
-type agent interface {
+type ProxyConn interface {
 	Proxy(client net.Conn)
 }
 
