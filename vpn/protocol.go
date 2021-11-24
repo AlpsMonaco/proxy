@@ -2,7 +2,10 @@ package vpn
 
 import (
 	"fmt"
+	"io"
 	"net"
+
+	"github.com/AlpsMonaco/proxy/stream"
 )
 
 /*
@@ -105,12 +108,86 @@ type debugconn struct {
 
 func (dc *debugconn) Read(b []byte) (n int, err error) {
 	n, err = dc.Conn.Read(b)
-	fmt.Printf("[%s]Read %d %v %s\n", dc.Name, n, b[:n], string(b[:n]))
+	fmt.Printf("[%s]Read %d %v\n", dc.Name, n, b[:n])
 	return
 }
 
 func (dc *debugconn) Write(b []byte) (n int, err error) {
 	n, err = dc.Conn.Write(b)
-	fmt.Printf("[%s]Write %d %v %s\n", dc.Name, n, b[:n], string(b[:n]))
+	fmt.Printf("[%s]Write %d %v\n", dc.Name, n, b[:n])
 	return
+}
+
+func transport(remote net.Conn, vpnconn net.Conn, encryptor Encryptor, onError func(error)) {
+	defer func() {
+		closeConn(vpnconn)
+		closeConn(remote)
+	}()
+
+	remote = &debugconn{remote, "remote"}
+	vpnconn = &debugconn{vpnconn, "vpn"}
+
+	var packet *stream.Packet = stream.NewPacket()
+	defer stream.FreePacket(packet)
+
+	var buffer []byte = make([]byte, stream.PacketSize)
+	var remoteBuffer = buffer[:stream.PacketSize]
+	// var vpnBuffer = buffer
+	// var remoteBuffer = make([]byte, 128)
+	// var vpnBuffer = make([]byte, 256)
+
+	go func() {
+		defer closeConn(vpnconn)
+		defer closeConn(remote)
+		var n int
+		var err error
+		for {
+			n, err = remote.Read(remoteBuffer)
+			if n == 0 && err == nil {
+				err = io.EOF
+			}
+			if err != nil {
+				onError(err)
+				return
+			}
+			// n, err = encryptor.Encrypt(remoteBuffer[:n], vpnBuffer)
+			// if err != nil {
+			// onError(err)
+			// return
+			// }
+
+			// err = packet.WriteStream(vpnconn, vpnBuffer[:n])
+			err = packet.WriteStream(vpnconn, remoteBuffer[:n])
+			if err != nil {
+				onError(err)
+				return
+			}
+		}
+	}()
+
+	func() {
+		defer closeConn(vpnconn)
+		defer closeConn(remote)
+		// var n int
+		var err error
+		for {
+			err = packet.Next(vpnconn)
+			if err != nil {
+				onError(err)
+				return
+			}
+			// n, err = encryptor.Decrypt(packet.Data(), vpnBuffer)
+			// if err != nil {
+			// onError(err)
+			// return
+			// }
+			_, err = remote.Write(packet.Data())
+			// _, err = remote.Write(vpnBuffer[:n])
+			if err != nil {
+				onError(err)
+				return
+			}
+		}
+	}()
+
 }

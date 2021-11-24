@@ -24,6 +24,8 @@ func TestProxyRequest(t *testing.T) {
 	var pr ProxyRequest
 	pr.SetRemoteInfo("118.98.90.87", 65534)
 	t.Log(pr.GetRemoteInfo())
+	pr.SetRemoteInfo("mail.qq.com", 443)
+	t.Log(pr.GetRemoteInfo())
 }
 
 func TestHelloMsg(t *testing.T) {

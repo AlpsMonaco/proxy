@@ -65,6 +65,9 @@ func (p *Packet) Next(stream Stream) error {
 	var err error
 	for {
 		n, err = stream.Read(p.b[p.bufSize:])
+		if n == 0 && err == nil {
+			err = io.EOF
+		}
 		if err != nil {
 			return err
 		}
@@ -94,7 +97,7 @@ func (p *Packet) parse(b []byte) byte {
 		return packetShort
 	}
 	p.bodySize = int(b[0]) + int(b[1])<<8
-	p.fullSize = p.bodySize + 2
+	p.fullSize = p.bodySize + PacketBytes
 	if len(b) < p.fullSize {
 		return packetShort
 	}

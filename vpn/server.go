@@ -2,10 +2,8 @@ package vpn
 
 import (
 	"fmt"
-	"io"
 	"net"
 
-	"github.com/AlpsMonaco/proxy/stream"
 	"github.com/AlpsMonaco/proxy/util"
 )
 
@@ -83,7 +81,7 @@ func (s *Server) newConn(client net.Conn) {
 }
 
 func (s *Server) acceptClient(client net.Conn) {
-	var allocator *util.Allocator = util.GetAlloctor(stream.PacketSize)
+	var allocator *util.Allocator = util.GetAlloctor(512)
 	defer util.FreeAllocator(allocator)
 
 	n, err := client.Read(allocator.GetBytes())
@@ -120,63 +118,65 @@ func (s *Server) acceptClient(client net.Conn) {
 		return
 	}
 
-	var packet *stream.Packet = stream.NewPacket()
-	defer stream.FreePacket(packet)
+	transport(remote, client, s.encryptor, s.onError)
 
-	var remoteBuffer = allocator.GetByteSize(stream.PacketSize - (1 << 8))
-	var clientBuffer []byte = allocator.GetBytes()
+	// var packet *stream.Packet = stream.NewPacket()
+	// defer stream.FreePacket(packet)
 
-	client = &debugconn{client, "vpn_client"}
-	remote = &debugconn{remote, "remote_host"}
+	// var remoteBuffer = allocator.GetByteSize(stream.PacketSize - (1 << 8))
+	// var clientBuffer []byte = allocator.GetBytes()
 
-	go func() {
-		defer closeConn(client)
-		defer closeConn(remote)
+	// client = &debugconn{client, "vpn_client"}
+	// remote = &debugconn{remote, "remote_host"}
 
-		for {
-			n, err = remote.Read(remoteBuffer)
-			if n == 0 && err == nil {
-				err = io.EOF
-			}
-			if err != nil {
-				s.onError(err)
-				return
-			}
-			n, err = s.encryptor.Encrypt(remoteBuffer[:n], clientBuffer)
-			if err != nil {
-				s.onError(err)
-				return
-			}
-			err = packet.WriteStream(client, clientBuffer[:n])
-			if err != nil {
-				s.onError(err)
-				return
-			}
-		}
-	}()
+	// go func() {
+	// 	defer closeConn(client)
+	// 	defer closeConn(remote)
 
-	func() {
-		defer closeConn(client)
-		defer closeConn(remote)
+	// 	for {
+	// 		n, err = remote.Read(remoteBuffer)
+	// 		if n == 0 && err == nil {
+	// 			err = io.EOF
+	// 		}
+	// 		if err != nil {
+	// 			s.onError(err)
+	// 			return
+	// 		}
+	// 		n, err = s.encryptor.Encrypt(remoteBuffer[:n], clientBuffer)
+	// 		if err != nil {
+	// 			s.onError(err)
+	// 			return
+	// 		}
+	// 		err = packet.WriteStream(client, clientBuffer[:n])
+	// 		if err != nil {
+	// 			s.onError(err)
+	// 			return
+	// 		}
+	// 	}
+	// }()
 
-		for {
-			err = packet.Next(client)
-			if err != nil {
-				s.onError(err)
-				return
-			}
-			n, err = s.encryptor.Decrypt(packet.Data(), clientBuffer)
-			if err != nil {
-				s.onError(err)
-				return
-			}
-			n, err = remote.Write(clientBuffer[:n])
-			if err != nil {
-				s.onError(err)
-				return
-			}
-		}
-	}()
+	// func() {
+	// 	defer closeConn(client)
+	// 	defer closeConn(remote)
+
+	// 	for {
+	// 		err = packet.Next(client)
+	// 		if err != nil {
+	// 			s.onError(err)
+	// 			return
+	// 		}
+	// 		n, err = s.encryptor.Decrypt(packet.Data(), clientBuffer)
+	// 		if err != nil {
+	// 			s.onError(err)
+	// 			return
+	// 		}
+	// 		n, err = remote.Write(clientBuffer[:n])
+	// 		if err != nil {
+	// 			s.onError(err)
+	// 			return
+	// 		}
+	// 	}
+	// }()
 
 }
 

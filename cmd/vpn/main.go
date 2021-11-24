@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"time"
+	"errors"
 
 	"github.com/AlpsMonaco/proxy/socks5"
 	"github.com/AlpsMonaco/proxy/vpn"
@@ -12,24 +11,23 @@ const ListenAddr = "127.0.0.1"
 const VpnPort = 7899
 const SocksPort = 7898
 
+var ErrorCatch = func(err error) {}
+
 func main() {
-	var server = vpn.Server{
-		Addr:        ListenAddr,
-		Port:        VpnPort,
-		Key:         []byte{},
-		Cipher:      0,
-		ErrorHandle: func(err error) { fmt.Println(err) },
-	}
-
-	go func() {
-		err := server.Listen()
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	time.Sleep(1 * time.Second)
-	fmt.Println("server start")
+	// var server = vpn.Server{
+	// 	Addr:        ListenAddr,
+	// 	Port:        VpnPort,
+	// 	Key:         []byte{},
+	// 	Cipher:      0,
+	// 	ErrorHandle: ErrorCatch,
+	// }
+	go vpn.StartServer(ListenAddr, VpnPort)
+	// go func() {
+	// 	err := server.Listen()
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }()
 
 	// var client = vpn.Client{
 	// 	IP:          ListenAddr,
@@ -59,22 +57,13 @@ func main() {
 	var sockserver = socks5.Server{
 		Address: ListenAddr,
 		Port:    SocksPort,
-		OnError: func(err error) { fmt.Println(err) },
-		// OnClientRequest: func(*socks5.Socks5_RequestMessage) error { return nil },
+		OnError: ErrorCatch,
 		OnConnectRemote: func(ip string, port int) (socks5.ProxyConn, error) {
-			var client = vpn.Client{
-				IP:          ListenAddr,
-				Port:        VpnPort,
-				Key:         []byte{},
-				Cipher:      0,
-				ErrorHandle: func(err error) { fmt.Println(err) },
+			ins := vpn.ConnectVPN(ListenAddr, VpnPort, ip, port)
+			if ins == nil {
+				return nil, errors.New("err ins inited failed")
 			}
-			err := client.Connect(ip, port)
-			if err != nil {
-				return nil, err
-			}
-
-			return &client, nil
+			return ins, nil
 		},
 	}
 

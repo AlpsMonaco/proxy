@@ -2,6 +2,8 @@ package stream
 
 import (
 	"fmt"
+	"io"
+	"math/rand"
 	"net"
 	"strconv"
 	"testing"
@@ -196,4 +198,67 @@ func TestVPNServer(t *testing.T) {
 	conn.Write(buf[:0xFF>>2-11])
 
 	time.Sleep(5 * time.Second)
+}
+
+type templatePacket struct {
+	b      []byte
+	cursor int
+}
+
+func (tp *templatePacket) init() {
+	tp.b = PacketGenerate(32321)
+	tp.b = append(tp.b, PacketGenerate(10)...)
+	tp.b = append(tp.b, PacketGenerate(20)...)
+	tp.b = append(tp.b, PacketGenerate(33320)...)
+	tp.b = append(tp.b, PacketGenerate(3320)...)
+	tp.b = append(tp.b, PacketGenerate(3320)...)
+	tp.b = append(tp.b, PacketGenerate(256)...)
+}
+
+func (tp *templatePacket) len() int {
+	return len(tp.b)
+}
+
+func (tp *templatePacket) Read(b []byte) (n int, err error) {
+	var forward int = rand.Intn(99) + 1
+	var nextcursor int = tp.cursor + forward
+	if nextcursor >= tp.len() {
+		nextcursor = tp.len()
+	}
+
+	var copysize int = copy(b, tp.b[tp.cursor:nextcursor])
+	tp.cursor = nextcursor
+	if copysize == 0 {
+		err = io.EOF
+	}
+	return copysize, err
+}
+
+func (tp *templatePacket) Write(b []byte) (n int, err error) {
+	return 0, nil
+}
+
+func PacketGenerate(size int) []byte {
+	var result []byte = make([]byte, size+2)
+	result[0] = byte(size & 0x00FF)
+	result[1] = byte((size & 0xFF00) >> 8)
+	for i := 2; i < size+2; i++ {
+		result[i] = result[i%2]
+	}
+	return result
+}
+
+func TestPacketParse(t *testing.T) {
+	var template templatePacket
+	template.init()
+	t.Log(template.len())
+	rand.Seed(time.Now().Unix())
+	var packet *Packet = NewPacket()
+
+	for {
+		err := packet.Next(&template)
+		assert(err)
+		t.Log(len(packet.Data()), packet.Data())
+	}
+
 }

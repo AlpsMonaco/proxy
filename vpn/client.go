@@ -3,10 +3,8 @@ package vpn
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net"
 
-	"github.com/AlpsMonaco/proxy/stream"
 	"github.com/AlpsMonaco/proxy/util"
 )
 
@@ -88,70 +86,71 @@ func (c *Client) Conn() net.Conn {
 }
 
 func (c *Client) Proxy(client net.Conn) {
-	var allocator *util.Allocator = util.GetAlloctor(stream.PacketSize)
-	defer util.FreeAllocator(allocator)
-	var packet *stream.Packet = stream.NewPacket()
-	defer stream.FreePacket(packet)
+	transport(client, c.Conn(), c.encryptor, c.onError)
+	// var allocator *util.Allocator = util.GetAlloctor(stream.PacketSize)
+	// defer util.FreeAllocator(allocator)
+	// var packet *stream.Packet = stream.NewPacket()
+	// defer stream.FreePacket(packet)
 
-	defer closeConn(c.s)
-	defer closeConn(client)
-	var n int
-	var err error
+	// defer closeConn(c.s)
+	// defer closeConn(client)
+	// var n int
+	// var err error
 
-	client = &debugconn{client, "socks5_client"}
-	c.s = &debugconn{c.s, "vpn_server"}
+	// // client = &debugconn{client, "socks5_client"}
+	// // c.s = &debugconn{c.s, "vpn_server"}
 
-	var clientBuffer = allocator.GetByteSize(stream.PacketSize - (1 << 8))
-	var serverBuffer = allocator.GetBytes()
+	// var clientBuffer = allocator.GetByteSize(stream.PacketSize - (1 << 8))
+	// var serverBuffer = allocator.GetBytes()
 
-	go func() {
-		defer closeConn(client)
-		defer closeConn(c.s)
-		for {
-			n, err = client.Read(clientBuffer)
-			if n == 0 && err == nil {
-				err = io.EOF
-			}
-			if err != nil {
-				c.onError(err)
-				return
-			}
-			n, err = c.encryptor.Encrypt(clientBuffer[:n], serverBuffer)
-			if err != nil {
-				c.onError(err)
-				return
-			}
-			// _, err = c.s.Write(serverBuffer[:n])
-			err = packet.WriteStream(c.s, serverBuffer[:n])
-			if err != nil {
-				c.onError(err)
-				return
-			}
-		}
+	// go func() {
+	// 	defer closeConn(client)
+	// 	defer closeConn(c.s)
+	// 	for {
+	// 		n, err = client.Read(clientBuffer)
+	// 		if n == 0 && err == nil {
+	// 			err = io.EOF
+	// 		}
+	// 		if err != nil {
+	// 			c.onError(err)
+	// 			return
+	// 		}
+	// 		n, err = c.encryptor.Encrypt(clientBuffer[:n], serverBuffer)
+	// 		if err != nil {
+	// 			c.onError(err)
+	// 			return
+	// 		}
+	// 		// _, err = c.s.Write(serverBuffer[:n])
+	// 		err = packet.WriteStream(c.s, serverBuffer[:n])
+	// 		if err != nil {
+	// 			c.onError(err)
+	// 			return
+	// 		}
+	// 	}
 
-	}()
+	// }()
 
-	func() {
-		defer closeConn(client)
-		defer closeConn(c.s)
-		for {
-			err = packet.Next(c.s)
-			if err != nil {
-				c.onError(err)
-				return
-			}
-			n, err = c.encryptor.Decrypt(packet.Data(), serverBuffer)
-			if err != nil {
-				c.onError(err)
-				return
-			}
-			_, err = client.Write(serverBuffer[:n])
-			if err != nil {
-				c.onError(err)
-				return
-			}
-		}
-	}()
+	// func() {
+	// 	defer closeConn(client)
+	// 	defer closeConn(c.s)
+	// 	for {
+	// 		err = packet.Next(c.s)
+	// 		if err != nil {
+	// 			c.onError(err)
+	// 			return
+	// 		}
+	// 		n, err = c.encryptor.Decrypt(packet.Data(), serverBuffer)
+	// 		if err != nil {
+	// 			c.onError(err)
+	// 			return
+	// 		}
+	// 		_, err = client.Write(serverBuffer[:n])
+	// 		if err != nil {
+	// 			c.onError(err)
+	// 			return
+	// 		}
+	// 	}
+	// }()
 }
 
 func (c *Client) onError(err error) {

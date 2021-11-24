@@ -180,3 +180,23 @@ func TestHttpRequest(t *testing.T) {
 	var b []byte
 	t.Log(b == nil)
 }
+
+func TestSlice(t *testing.T) {
+	buffer := make([]byte, 64)
+	bufferPart1 := buffer[:64]
+	bufferPart2 := buffer[:32]
+
+	bufferPart1[1] = 1
+	bufferPart1[2] = 2
+	bufferPart1[3] = 3
+	bufferPart1[4] = 4
+
+	t.Log(*(*reflect.SliceHeader)(unsafe.Pointer(&buffer)))
+	t.Log(*(*reflect.SliceHeader)(unsafe.Pointer(&bufferPart1)))
+	t.Log(*(*reflect.SliceHeader)(unsafe.Pointer(&bufferPart2)))
+
+	t.Log(buffer)
+	t.Log(bufferPart1)
+	t.Log(bufferPart2[:5])
+
+}
