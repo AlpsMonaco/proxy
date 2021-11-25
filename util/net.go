@@ -1,5 +1,7 @@
 package util
 
-// 172.31.0.41
-// 64.44.32.228
-//
+import "fmt"
+
+func SprintfAddress(addr string, port int) string {
+	return fmt.Sprintf("%s:%d", addr, port)
+}

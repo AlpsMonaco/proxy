@@ -2,186 +2,109 @@ package vpn
 
 import (
 	"fmt"
-	"io"
 	"net"
+	"strconv"
 	"time"
+	"unsafe"
 
-	"github.com/AlpsMonaco/proxy/socks5"
-	"github.com/AlpsMonaco/proxy/stream"
 	"github.com/AlpsMonaco/proxy/util"
 )
 
-func onerror(err error) {
-	util.ErrorCatch(err)
+var onerror func(err error)
+var log func(s string)
+
+func init() {
+	if onerror == nil {
+		onerror = func(err error) {
+			fmt.Print(format("ERROR", err))
+		}
+	}
+	if log == nil {
+		log = func(s string) {
+			fmt.Print(format("INFO", s))
+		}
+	}
 }
 
-func StartServer(listenaddr string, port int) error {
-	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", listenaddr, port))
+func format(logtype string, content interface{}) string {
+	return fmt.Sprintf("[%s]\t[%s] %v\n", logtype, time.Now().Format("2006-01-02 15:04:05"), content)
+}
+
+func SetErrorHandle(errhandle func(error)) {
+	onerror = errhandle
+}
+
+func StartServer(listenaddr string, listenport int) error {
+	listener, err := net.Listen("tcp", util.SprintfAddress(listenaddr, listenport))
 	if err != nil {
 		return err
 	}
-
 	for {
-		conn, err := l.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			return err
 		}
-		go newVpnClient(conn)
+		go serve(conn)
 	}
 }
 
-func newVpnClient(clientconn net.Conn) {
-	a := util.GetAlloctor(264)
-	_, err := clientconn.Read(a.GetBytes())
+type RemoteConnectionInfo struct {
+	va [256]byte
+}
+
+func (info *RemoteConnectionInfo) SetInfo(remoteip string, remoteport int) {
+	var sizepointer *byte = &info.va[0]
+	*sizepointer = 0
+
+	for i := range []byte(remoteip) {
+		info.va[i+1] = []byte(remoteip)[i]
+		*sizepointer++
+	}
+	info.va[*sizepointer+1] = byte(remoteport & 0x00FF)
+	info.va[*sizepointer+2] = byte((remoteport & 0xFF00) >> 8)
+}
+
+func (info *RemoteConnectionInfo) GetInfo() (remoteip string, remoteport int) {
+	if info.va[0] == 0 {
+		return
+	}
+	remoteip = string(info.va[1 : info.va[0]+1])
+	remoteport = int(info.va[info.va[0]+1]) + int(info.va[info.va[0]+2])<<8
+	return
+}
+
+func serve(client net.Conn) {
+	buf := make([]byte, 0xFF)
+	pointer := unsafe.Pointer(&buf[0])
+	_, err := client.Read(buf)
 	if err != nil {
 		onerror(err)
 		return
 	}
 
-	requestmsg := (*socks5.Socks5_RequestMessage)(a.GetPointer())
-	host := requestmsg.GetHost()
-	port := requestmsg.GetPort()
-	remote, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), 10*time.Second)
+	remoteinfo := (*RemoteConnectionInfo)(pointer)
+	ip, port := remoteinfo.GetInfo()
+	log("remote info:" + ip + ":" + strconv.Itoa(port))
+	remoteconn, err := net.Dial("tcp", util.SprintfAddress(ip, port))
 	if err != nil {
-		a.GetBytes()[0] = Code_Error
-		_, _ = clientconn.Write(a.GetByteSize(1))
+		buf[0] = 0
+		_, _ = client.Write(buf[:1])
+		onerror(err)
+		return
+	}
+	buf[0] = 1
+	_, err = client.Write(buf[:1])
+	if err != nil {
 		onerror(err)
 		return
 	}
 
-	a.GetBytes()[0] = Code_Success
-	_, err = clientconn.Write(a.GetByteSize(1))
-	if err != nil {
-		onerror(err)
-		return
-	}
-
-	// beginProxy
-	proxy(remote, clientconn)
+	proxy(remoteconn, client)
 }
 
-type directproxy struct {
-	serverconn net.Conn
+func proxy(remoteconn, clientinfo net.Conn) {
+
 }
 
-func (dp *directproxy) Proxy(client net.Conn) {
-	// buf := make([]byte, 65535)
-	// clientBuf := make([]byte, 65535)
-	// // var packet = stream.NewPacket()
-
-	// go func() {
-	// 	for {
-	// 		n, err := dp.serverconn.Read(buf)
-	// 		if err != nil {
-	// 			onerror(err)
-	// 			return
-	// 		}
-
-	// 		_, err = client.Write(buf[:n])
-	// 		if err != nil {
-	// 			onerror(err)
-	// 			return
-	// 		}
-	// 	}
-	// }()
-
-	// func() {
-	// 	for {
-	// 		n, err := client.Read(clientBuf)
-	// 		if err != nil {
-	// 			onerror(err)
-	// 			return
-	// 		}
-
-	// 		_, err = dp.serverconn.Write(clientBuf[:n])
-	// 		if err != nil {
-	// 			onerror(err)
-	// 			return
-	// 		}
-	// 	}
-	// }()
-
-	// remote
-
-	proxy(client, dp.serverconn)
-}
-
-func ConnectVPN(serverip string, serverport int, remoteip string, remoteport int) socks5.ProxyConn {
-	// remoteconn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", remoteip, remoteport), 10*time.Second)
-	// if err != nil {
-	// 	onerror(err)
-	// 	return nil
-	// }
-
-	// return &directproxy{remoteconn}
-
-	serverconn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", serverip, serverport), 10*time.Second)
-	if err != nil {
-		onerror(err)
-		return nil
-	}
-	a := util.GetAlloctor(264)
-	requestmsg := (*socks5.Socks5_RequestMessage)(a.GetPointer())
-	socks5.FillRequestMessage(requestmsg, socks5.SOCKS5_CMD_CONNECT, remoteip, remoteport)
-	_, err = serverconn.Write(a.GetByteSize(requestmsg.GetSize()))
-	if err != nil {
-		onerror(err)
-		return nil
-	}
-
-	_, err = serverconn.Read(a.GetBytes())
-	if err != nil {
-		onerror(err)
-		return nil
-	}
-	if a.GetBytes()[0] != Code_Success {
-		return nil
-	}
-
-	return &directproxy{serverconn}
-}
-
-func proxy(remoteconn, vpnconn net.Conn) {
-	defer closeConn(remoteconn)
-	defer closeConn(vpnconn)
-	buf := make([]byte, stream.PacketSize)
-	packet := stream.NewPacket()
-
-	go func() {
-		defer closeConn(remoteconn)
-		defer closeConn(vpnconn)
-		for {
-			n, err := remoteconn.Read(buf)
-			if n == 0 && err == io.EOF {
-				err = io.EOF
-			}
-			if err != nil {
-				onerror(err)
-				return
-			}
-			err = packet.WriteStream(vpnconn, buf[:n])
-			if err != nil {
-				onerror(err)
-				return
-			}
-		}
-	}()
-
-	func() {
-		defer closeConn(remoteconn)
-		defer closeConn(vpnconn)
-		for {
-
-			err := packet.Next(vpnconn)
-			if err != nil {
-				onerror(err)
-				return
-			}
-			_, err = remoteconn.Write(packet.Data())
-			if err != nil {
-				onerror(err)
-				return
-			}
-		}
-	}()
+type parser struct {
 }
