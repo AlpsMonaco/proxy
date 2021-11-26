@@ -108,13 +108,14 @@ type debugconn struct {
 
 func (dc *debugconn) Read(b []byte) (n int, err error) {
 	n, err = dc.Conn.Read(b)
-	fmt.Printf("[%s]Read %d %v\n", dc.Name, n, b[:n])
+	log(fmt.Sprintf("[%s]Read %d %v", dc.Name, n, b[:n]))
+	// fmt.Printf("[%s]Read %d %v\n", dc.Name, n, b[:n])
 	return
 }
 
 func (dc *debugconn) Write(b []byte) (n int, err error) {
 	n, err = dc.Conn.Write(b)
-	fmt.Printf("[%s]Write %d %v\n", dc.Name, n, b[:n])
+	log(fmt.Sprintf("[%s]Write %d %v", dc.Name, n, b[:n]))
 	return
 }
 

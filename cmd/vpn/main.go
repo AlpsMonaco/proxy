@@ -2,8 +2,10 @@ package main
 
 import (
 	"errors"
+	"net"
 
 	"github.com/AlpsMonaco/proxy/socks5"
+	"github.com/AlpsMonaco/proxy/util"
 	"github.com/AlpsMonaco/proxy/vpn"
 )
 
@@ -59,9 +61,13 @@ func main() {
 		Port:    SocksPort,
 		OnError: ErrorCatch,
 		OnConnectRemote: func(ip string, port int) (socks5.ProxyConn, error) {
-			ins := vpn.ConnectVPN(ListenAddr, VpnPort, ip, port)
+			serverconn, err := net.Dial("tcp", util.SprintfAddress(ListenAddr, VpnPort))
+			if err != nil {
+				return nil, err
+			}
+			ins := vpn.NewClient(serverconn, ip, port)
 			if ins == nil {
-				return nil, errors.New("err ins inited failed")
+				return nil, errors.New("connect failed")
 			}
 			return ins, nil
 		},

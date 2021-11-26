@@ -1,142 +1,138 @@
 package vpn
 
-// import (
-// 	"io"
-// 	"unsafe"
+import (
+	"io"
+	"unsafe"
+)
 
-// 	"github.com/AlpsMonaco/proxy/util"
-// )
+type PacketProtocol interface {
+	PacketSpliter
+	Package
+}
 
-// const headerSize = 2
+type Package interface {
+	Pack(io.Writer, []byte) error
+}
 
-// type Header struct {
-// 	Size uint16
-// }
+type PacketSpliter interface {
+	Next(io.Reader, []byte) error
+	Data() []byte
+}
 
-// type Packet struct {
-// 	a      *util.Allocator
-// 	header Header
-// 	offset int
-// }
+type raw struct {
+	b []byte
+}
 
-// func (p *Packet) Init() {
-// 	InitPacket(p)
-// }
+func (r *raw) Next(reader io.Reader, b []byte) error {
+	n, err := reader.Read(b)
+	if n == 0 && err == nil {
+		err = io.EOF
+	}
+	if err != nil {
+		return err
+	}
+	r.b = b[:n]
+	return nil
+}
 
-// func (p *Packet) Free() {
-// 	FreePacket(p)
-// }
+func (r *raw) Data() []byte {
+	return r.b
+}
 
-// func InitPacket(p *Packet) {
-// 	p.a = util.GetAlloctor(1 << 16)
-// }
+func (r *raw) Pack(writer io.Writer, b []byte) (err error) {
+	_, err = writer.Write(b)
+	return err
+}
 
-// func FreePacket(p *Packet) {
-// 	util.FreeAllocator(p.a)
-// }
+const PacketBytes = 2
+const PacketSize = 1<<(PacketBytes*8) - 1
 
-// func (p *Packet) Next(r io.Reader) error {
-// 	return p.readFull(r)
-// }
+type Packet struct {
+	data     []byte
+	bodySize int
+	fullSize int
+	bufSize  int
+	cursor   int
+}
 
-// func (p *Packet) GetData() []byte {
-// 	if p.header.Size < headerSize {
-// 		return nil
-// 	}
-// 	return p.a.GetBytes()[headerSize:p.header.Size]
-// }
+const (
+	packetShort = iota
+	packetEqual
+	packetExtra
+)
 
-// func (p *Packet) GetPointer() unsafe.Pointer {
-// 	return p.a.GetPointerN(headerSize)
-// }
+func (p *Packet) Next(r io.Reader, buf []byte) error {
+	var status byte
+	p.cursor = p.cursor + p.fullSize
+	if p.cursor < p.bufSize {
+		status = p.parse(buf[p.cursor:p.bufSize])
+		if status != packetShort {
+			p.data = buf[p.cursor+2 : p.cursor+p.fullSize]
+			return nil
+		}
+		copy(buf, buf[p.cursor:p.bufSize])
+		p.bufSize = p.bufSize - p.cursor
+		p.cursor = 0
+	} else {
+		p.cursor = 0
+		p.bufSize = 0
+	}
 
-// func (p *Packet) WriteBuffer(w io.Writer, size int) error {
-// 	size += 2
-// 	p.a.GetBytes()[0] = byte(size & 0x00FF)
-// 	p.a.GetBytes()[1] = byte((size & 0xFF00) >> 8)
-// 	_, err := w.Write(p.a.GetByteSize(size + headerSize))
-// 	return err
-// }
+	var n int
+	var err error
+	for {
+		n, err = r.Read(buf[p.bufSize:])
+		if n == 0 && err == nil {
+			err = io.EOF
+		}
+		if err != nil {
+			return err
+		}
+		p.bufSize += n
+		status = p.parse(buf[:p.bufSize])
+		if status == packetShort {
+			continue
+		}
+		p.data = buf[p.cursor+2 : p.cursor+p.fullSize]
+		return nil
+	}
+}
 
-// func (p *Packet) SetBuffer(b []byte) {
-// 	copy(p.a.Shift(headerSize), b)
-// }
+func (p *Packet) Data() []byte {
+	return p.data
+	// return buf[p.cursor+2 : p.cursor+p.fullSize]
+}
 
-// func (p *Packet) WriteSize(w io.Writer, size int) error {
-// 	size += 2
-// 	p.a.GetBytes()[0] = byte(size & 0x00FF)
-// 	p.a.GetBytes()[1] = byte((size & 0xFF00) >> 8)
-// 	_, err := w.Write(p.a.GetByteSize(headerSize))
-// 	return err
-// }
+func (p *Packet) BodySize() int {
+	return p.bodySize
+}
 
-// // read a full packet.
-// func (p *Packet) readFull(r io.Reader) error {
-// 	var err error
-// 	if err = p.readHeader(r); err != nil {
-// 		return err
-// 	}
-// 	if err = p.readBody(r); err != nil {
-// 		return err
-// 	}
+func (p *Packet) FullSize() int {
+	return p.fullSize
+}
 
-// 	return nil
-// }
+func (p *Packet) parse(b []byte) byte {
+	if len(b) < PacketBytes {
+		return packetShort
+	}
+	p.bodySize = int(b[0]) + int(b[1])<<8
+	p.fullSize = p.bodySize + PacketBytes
+	if len(b) < p.fullSize {
+		return packetShort
+	}
+	if len(b) > p.fullSize {
+		return packetExtra
+	}
+	return packetEqual
+}
 
-// // provide full buffer everytime.
-// func (p *Packet) readHeader(r io.Reader) error {
-// 	var n int
-// 	n = p.offset - int(p.header.Size)
-// 	if n > 0 {
-// 		copy(p.a.GetBytes(), p.a.GetBytes()[p.header.Size:p.offset])
-// 		p.offset = n
-// 		if n >= headerSize {
-// 			p.header.Size = uint16(p.a.GetBytes()[1]) << 8
-// 			p.header.Size += uint16(p.a.GetBytes()[0])
-// 			return nil
-// 		}
-// 	} else {
-// 		p.offset = 0
-// 	}
-
-// 	var err error
-// 	for {
-// 		n, err = r.Read(p.a.Shift(p.offset))
-// 		if n == 0 {
-// 			err = io.EOF
-// 		}
-// 		if err != nil {
-// 			return err
-// 		}
-// 		p.offset += n
-// 		if p.offset < headerSize {
-// 			continue
-// 		}
-// 		p.header.Size = uint16(p.a.GetBytes()[1]) << 8
-// 		p.header.Size += uint16(p.a.GetBytes()[0])
-// 		return nil
-// 	}
-// }
-
-// func (p *Packet) readBody(r io.Reader) error {
-// 	if p.offset >= int(p.header.Size) {
-// 		return nil
-// 	}
-
-// 	var n int
-// 	var err error
-// 	for {
-// 		n, err = r.Read(p.a.Shift(p.offset))
-// 		if n == 0 {
-// 			err = io.EOF
-// 		}
-// 		if err != nil {
-// 			return err
-// 		}
-// 		p.offset += n
-// 		if p.offset < int(p.header.Size) {
-// 			continue
-// 		}
-// 		return nil
-// 	}
-// }
+func (p *Packet) Pack(writer io.Writer, b []byte) error {
+	size := len(b)
+	var err error
+	_, err = writer.Write((*(*[2]byte)(unsafe.Pointer(&size)))[:2])
+	if err != nil {
+		return err
+	}
+	_, err = writer.Write(b)
+	return err
+}

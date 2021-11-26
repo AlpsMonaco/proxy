@@ -201,6 +201,7 @@ func TestVPNServer(t *testing.T) {
 }
 
 type templatePacket struct {
+	net.Conn
 	b      []byte
 	cursor int
 }
@@ -220,7 +221,7 @@ func (tp *templatePacket) len() int {
 }
 
 func (tp *templatePacket) Read(b []byte) (n int, err error) {
-	var forward int = rand.Intn(99) + 1
+	var forward int = rand.Intn(99) + 40000
 	var nextcursor int = tp.cursor + forward
 	if nextcursor >= tp.len() {
 		nextcursor = tp.len()
@@ -251,14 +252,15 @@ func PacketGenerate(size int) []byte {
 func TestPacketParse(t *testing.T) {
 	var template templatePacket
 	template.init()
-	t.Log(template.len())
+	fmt.Println(template.len())
 	rand.Seed(time.Now().Unix())
 	var packet *Packet = NewPacket()
 
+	c := &connWithLog{&template}
 	for {
-		err := packet.Next(&template)
+		err := packet.Next(c)
 		assert(err)
-		t.Log(len(packet.Data()), packet.Data())
+		fmt.Println("got", len(packet.Data()), packet.Data())
 	}
 
 }

@@ -33,8 +33,13 @@ var packetPool sync.Pool = sync.Pool{
 	},
 }
 
-func NewPacket() *Packet {
-	return packetPool.Get().(*Packet)
+func NewPacket() (p *Packet) {
+	p = packetPool.Get().(*Packet)
+	p.bodySize = 0
+	p.bufSize = 0
+	p.cursor = 0
+	p.fullSize = 0
+	return
 }
 
 func FreePacket(packet *Packet) {

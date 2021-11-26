@@ -73,6 +73,11 @@ func (info *RemoteConnectionInfo) GetInfo() (remoteip string, remoteport int) {
 	return
 }
 
+const (
+	code_success byte = iota
+	code_error
+)
+
 func serve(client net.Conn) {
 	buf := make([]byte, 0xFF)
 	pointer := unsafe.Pointer(&buf[0])
@@ -87,24 +92,97 @@ func serve(client net.Conn) {
 	log("remote info:" + ip + ":" + strconv.Itoa(port))
 	remoteconn, err := net.Dial("tcp", util.SprintfAddress(ip, port))
 	if err != nil {
-		buf[0] = 0
+		buf[0] = code_error
 		_, _ = client.Write(buf[:1])
 		onerror(err)
 		return
 	}
-	buf[0] = 1
+	buf[0] = code_success
 	_, err = client.Write(buf[:1])
 	if err != nil {
 		onerror(err)
 		return
 	}
-
 	proxy(remoteconn, client)
 }
 
-func proxy(remoteconn, clientinfo net.Conn) {
+func proxy(remoteconn, vpnconn net.Conn) {
+	// remoteconn = &debugconn{remoteconn, "[remoteconn]" + remoteconn.RemoteAddr().String()}
+	// vpnconn = &debugconn{vpnconn, "[vpnconn]" + vpnconn.LocalAddr().String()}
 
+	defer closeConn(remoteconn)
+	defer closeConn(vpnconn)
+	remotebuf := make([]byte, 0xFFFF-(1<<8))
+	clientbuf := make([]byte, 0xFFFF)
+
+	var rp PacketProtocol = &raw{}
+	var vp PacketProtocol = &Packet{}
+
+	go func() {
+		defer closeConn(remoteconn)
+		defer closeConn(vpnconn)
+		for {
+			err := rp.Next(remoteconn, remotebuf)
+			if err != nil {
+				onerror(err)
+				return
+			}
+
+			err = vp.Pack(vpnconn, rp.Data())
+			if err != nil {
+				onerror(err)
+				return
+			}
+		}
+	}()
+
+	func() {
+		defer closeConn(remoteconn)
+		defer closeConn(vpnconn)
+		for {
+			err := vp.Next(vpnconn, clientbuf)
+			if err != nil {
+				onerror(err)
+				return
+			}
+
+			err = rp.Pack(remoteconn, vp.Data())
+			if err != nil {
+				onerror(err)
+				return
+			}
+		}
+	}()
 }
 
-type parser struct {
+type client struct {
+	serverconn net.Conn
+}
+
+func (c *client) Proxy(clientconn net.Conn) {
+	proxy(clientconn, c.serverconn)
+}
+
+func NewClient(serverconn net.Conn, remoteip string, remoteport int) *client {
+	buf := make([]byte, 0xFF)
+	pointer := unsafe.Pointer(&buf[0])
+	(*RemoteConnectionInfo)(pointer).SetInfo(remoteip, remoteport)
+
+	_, err := serverconn.Write(buf)
+	if err != nil {
+		onerror(err)
+		return nil
+	}
+
+	_, err = serverconn.Read(buf)
+	if err != nil {
+		onerror(err)
+		return nil
+	}
+
+	if buf[0] != code_success {
+		return nil
+	}
+
+	return &client{serverconn}
 }
