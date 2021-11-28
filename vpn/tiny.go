@@ -112,23 +112,23 @@ func proxy(remoteconn, vpnconn net.Conn) {
 
 	defer closeConn(remoteconn)
 	defer closeConn(vpnconn)
-	remotebuf := make([]byte, 0xFFFF-(1<<8))
+	remotebuf := make([]byte, 0xFFFF-(1<<7))
 	clientbuf := make([]byte, 0xFFFF)
 
-	var rp PacketProtocol = &raw{}
-	var vp PacketProtocol = &Packet{}
+	var remotepacket Packet = &Raw{}
+	var vpnpacket Packet = &Raw{}
 
 	go func() {
 		defer closeConn(remoteconn)
 		defer closeConn(vpnconn)
 		for {
-			err := rp.Next(remoteconn, remotebuf)
+			err := remotepacket.Next(remoteconn, remotebuf)
 			if err != nil {
 				onerror(err)
 				return
 			}
 
-			err = vp.Pack(vpnconn, rp.Data())
+			err = vpnpacket.Send(vpnconn, remotepacket.Data())
 			if err != nil {
 				onerror(err)
 				return
@@ -140,13 +140,13 @@ func proxy(remoteconn, vpnconn net.Conn) {
 		defer closeConn(remoteconn)
 		defer closeConn(vpnconn)
 		for {
-			err := vp.Next(vpnconn, clientbuf)
+			err := vpnpacket.Next(vpnconn, clientbuf)
 			if err != nil {
 				onerror(err)
 				return
 			}
 
-			err = rp.Pack(remoteconn, vp.Data())
+			err = remotepacket.Send(remoteconn, vpnpacket.Data())
 			if err != nil {
 				onerror(err)
 				return
