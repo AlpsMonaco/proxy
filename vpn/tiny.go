@@ -48,31 +48,6 @@ func StartServer(listenaddr string, listenport int) error {
 	}
 }
 
-type RemoteConnectionInfo struct {
-	va [256]byte
-}
-
-func (info *RemoteConnectionInfo) SetInfo(remoteip string, remoteport int) {
-	var sizepointer *byte = &info.va[0]
-	*sizepointer = 0
-
-	for i := range []byte(remoteip) {
-		info.va[i+1] = []byte(remoteip)[i]
-		*sizepointer++
-	}
-	info.va[*sizepointer+1] = byte(remoteport & 0x00FF)
-	info.va[*sizepointer+2] = byte((remoteport & 0xFF00) >> 8)
-}
-
-func (info *RemoteConnectionInfo) GetInfo() (remoteip string, remoteport int) {
-	if info.va[0] == 0 {
-		return
-	}
-	remoteip = string(info.va[1 : info.va[0]+1])
-	remoteport = int(info.va[info.va[0]+1]) + int(info.va[info.va[0]+2])<<8
-	return
-}
-
 const (
 	code_success byte = iota
 	code_error

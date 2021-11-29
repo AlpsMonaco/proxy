@@ -19,9 +19,7 @@ type PacketReceiver interface {
 	Data() []byte
 }
 
-type Raw struct {
-	b []byte
-}
+type Raw struct{ b []byte }
 
 func (r *Raw) Next(reader io.Reader, b []byte) error {
 	n, err := reader.Read(b)
@@ -35,9 +33,7 @@ func (r *Raw) Next(reader io.Reader, b []byte) error {
 	return nil
 }
 
-func (p *Raw) Data() []byte {
-	return p.b
-}
+func (p *Raw) Data() []byte { return p.b }
 
 func (p *Raw) Send(writer io.Writer, b []byte) (err error) {
 	_, err = writer.Write(b)
@@ -98,18 +94,11 @@ func (sp *SizedPacket) Next(r io.Reader, buf []byte) error {
 	}
 }
 
-func (p *SizedPacket) Data() []byte {
-	return p.data
-	// return buf[p.cursor+2 : p.cursor+p.fullSize]
-}
+func (p *SizedPacket) Data() []byte { return p.data }
 
-func (p *SizedPacket) BodySize() int {
-	return p.bodysize
-}
+func (p *SizedPacket) BodySize() int { return p.bodysize }
 
-func (p *SizedPacket) FullSize() int {
-	return p.fullsize
-}
+func (p *SizedPacket) FullSize() int { return p.fullsize }
 
 func (p *SizedPacket) parse(b []byte) byte {
 	if len(b) < PacketBytes {
@@ -126,7 +115,7 @@ func (p *SizedPacket) parse(b []byte) byte {
 	return packetEqual
 }
 
-func (p *SizedPacket) Pack(writer io.Writer, b []byte) error {
+func (p *SizedPacket) Send(writer io.Writer, b []byte) error {
 	size := len(b)
 	var err error
 	_, err = writer.Write((*(*[2]byte)(unsafe.Pointer(&size)))[:2])

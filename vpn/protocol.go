@@ -84,22 +84,47 @@ func (v *Verify) GetData() (size byte, b []byte) {
 	return size, v.va[1 : 1+size]
 }
 
-type ProxyRequest struct {
+type RemoteConnectionInfo struct {
 	va [256]byte
 }
 
-func (pr *ProxyRequest) SetRemoteInfo(ip string, port int) {
-	pr.va[0] = byte(len(ip))
-	copy(pr.va[1:], []byte(ip))
-	pr.va[pr.va[0]+1] = byte(port & 0x00FF)
-	pr.va[pr.va[0]+2] = byte((port & 0xFF00) >> 8)
+func (info *RemoteConnectionInfo) SetInfo(remoteip string, remoteport int) {
+	info.va[0] = byte(len(remoteip))
+	copy(info.va[1:], []byte(remoteip))
+
+	info.va[info.va[0]+1] = byte(remoteport & 0x00FF)
+	info.va[info.va[0]+2] = byte((remoteport & 0xFF00) >> 8)
 }
 
-func (pr *ProxyRequest) GetRemoteInfo() (ip string, port int) {
-	ip = string(pr.va[1 : pr.va[0]+1])
-	port = int(pr.va[pr.va[0]+1]) + int(pr.va[pr.va[0]+2])<<8
+func (info *RemoteConnectionInfo) GetInfo() (remoteip string, remoteport int) {
+	if info.va[0] == 0 {
+		return
+	}
+	remoteip = string(info.va[1 : info.va[0]+1])
+	remoteport = int(info.va[info.va[0]+1]) + int(info.va[info.va[0]+2])<<8
 	return
 }
+
+func (info *RemoteConnectionInfo) GetSize() int {
+	return 1 + 2 + int(info.va[0])
+}
+
+// type ProxyRequest struct {
+// 	va [256]byte
+// }
+
+// func (pr *ProxyRequest) SetRemoteInfo(ip string, port int) {
+// 	pr.va[0] = byte(len(ip))
+// 	copy(pr.va[1:], []byte(ip))
+// 	pr.va[pr.va[0]+1] = byte(port & 0x00FF)
+// 	pr.va[pr.va[0]+2] = byte((port & 0xFF00) >> 8)
+// }
+
+// func (pr *ProxyRequest) GetRemoteInfo() (ip string, port int) {
+// 	ip = string(pr.va[1 : pr.va[0]+1])
+// 	port = int(pr.va[pr.va[0]+1]) + int(pr.va[pr.va[0]+2])<<8
+// 	return
+// }
 
 type debugconn struct {
 	net.Conn
