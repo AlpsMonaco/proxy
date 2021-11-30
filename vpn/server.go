@@ -7,12 +7,6 @@ import (
 
 type CipherEnum byte
 
-const (
-	Cipher_Plain CipherEnum = iota
-	Cipher_AES256GCM
-	Cipher_Chacha20poly1305
-)
-
 type Server struct {
 	Addr        string
 	Port        int

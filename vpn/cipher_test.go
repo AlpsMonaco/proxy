@@ -1,15 +1,10 @@
 package vpn
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"fmt"
-	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/AlpsMonaco/proxy/util"
-	"golang.org/x/crypto/chacha20poly1305"
 )
 
 func assert(err error) {
@@ -24,67 +19,26 @@ func TestMD5(t *testing.T) {
 	t.Logf("%x", b)
 }
 
-func TestCipher(t *testing.T) {
-	aes256Algo()
-}
-
-func aes256Algo() {
+func TestAes256GCM(t *testing.T) {
 	const key = "123456"
-	const plainText = "helloworld"
-	fmt.Println("==========START==========")
-	nonce := make([]byte, 12)
-	for i := range nonce {
-		nonce[i] = byte(rand.Int31n(255))
-	}
-	fmt.Println("nonce", len(nonce), nonce)
-	block, err := aes.NewCipher(util.GetMD5([]byte(key)))
+	encryptor := GetEncryptor(CipherAes256GCM, []byte(key))
+	dst := make([]byte, 2048)
+	result, err := encryptor.Encrypt([]byte("HelloWorld"), dst)
 	assert(err)
-	gcm, err := cipher.NewGCM(block)
+	t.Log(result)
+	result, err = encryptor.Decrypt(result, dst)
 	assert(err)
-	fmt.Println("plainText", len([]byte(plainText)), []byte(plainText))
-	result := gcm.Seal(nil, nonce, []byte(plainText), nil)
-	fmt.Println("result", len(result), result)
-	fmt.Println("==========END==========")
+	t.Log(result)
 }
 
-func TestChacha20(t *testing.T) {
-	chacha20poly1305Algo()
-}
-
-func chacha20poly1305Algo() {
+func TestChaCha20Poly(t *testing.T) {
 	const key = "123456"
-	plainText := make([]byte, 10+16)
-	copy(plainText, "helloworld")
-
-	fmt.Println("==========START==========")
-	aead, err := chacha20poly1305.New([]byte(util.GetMD5String([]byte(key))))
+	encryptor := GetEncryptor(CipherChaCha20poly1305, []byte(key))
+	dst := make([]byte, 2048)
+	result, err := encryptor.Encrypt([]byte("HelloWorld"), dst)
 	assert(err)
-	nonce := make([]byte, 12)
-	for i := range nonce {
-		nonce[i] = byte(rand.Int31n(255))
-	}
-	fmt.Println("nonce", len(nonce), nonce)
-	fmt.Println("plainText", len([]byte(plainText)), []byte(plainText))
-	result := aead.Seal(plainText[:0], nonce, plainText[:len("helloworld")], nil)
-	fmt.Println("result", len(result), result)
-	fmt.Println(plainText)
-	fmt.Println("==========END==========")
-}
-
-func TestBatchAlgo(t *testing.T) {
-	rand.Seed(time.Now().Unix())
-	aes256Algo()
-	aes256Algo()
-	aes256Algo()
-	aes256Algo()
-	aes256Algo()
-	aes256Algo()
-	aes256Algo()
-	chacha20poly1305Algo()
-	chacha20poly1305Algo()
-	chacha20poly1305Algo()
-	chacha20poly1305Algo()
-	chacha20poly1305Algo()
-	chacha20poly1305Algo()
-	chacha20poly1305Algo()
+	t.Log(result)
+	result, err = encryptor.Decrypt(result, dst)
+	assert(err)
+	t.Log(result)
 }

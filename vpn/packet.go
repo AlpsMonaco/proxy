@@ -49,7 +49,7 @@ const (
 	packetExtra
 )
 
-type SizedPacket struct {
+type SizePacket struct {
 	data     []byte
 	bodysize int
 	fullsize int
@@ -57,7 +57,7 @@ type SizedPacket struct {
 	cursor   int
 }
 
-func (sp *SizedPacket) Next(r io.Reader, buf []byte) error {
+func (sp *SizePacket) Next(r io.Reader, buf []byte) error {
 	var status byte
 	sp.cursor = sp.cursor + sp.fullsize
 	if sp.cursor < sp.bufsize {
@@ -94,13 +94,13 @@ func (sp *SizedPacket) Next(r io.Reader, buf []byte) error {
 	}
 }
 
-func (p *SizedPacket) Data() []byte { return p.data }
+func (p *SizePacket) Data() []byte { return p.data }
 
-func (p *SizedPacket) BodySize() int { return p.bodysize }
+func (p *SizePacket) BodySize() int { return p.bodysize }
 
-func (p *SizedPacket) FullSize() int { return p.fullsize }
+func (p *SizePacket) FullSize() int { return p.fullsize }
 
-func (p *SizedPacket) parse(b []byte) byte {
+func (p *SizePacket) parse(b []byte) byte {
 	if len(b) < PacketBytes {
 		return packetShort
 	}
@@ -115,7 +115,7 @@ func (p *SizedPacket) parse(b []byte) byte {
 	return packetEqual
 }
 
-func (p *SizedPacket) Send(writer io.Writer, b []byte) error {
+func (p *SizePacket) Send(writer io.Writer, b []byte) error {
 	size := len(b)
 	var err error
 	_, err = writer.Write((*(*[2]byte)(unsafe.Pointer(&size)))[:2])
