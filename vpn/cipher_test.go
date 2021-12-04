@@ -35,32 +35,39 @@ func TestCipher(t *testing.T) {
 
 	encryptor = GetEncryptor(CipherPlain, key)
 	copy(buf, []byte(PlainText))
+	printAddress(&buf[0])
 	cipherText, err = encryptor.Encrypt(buf[:PlainTextSize], buf)
 	assert(err)
 	t.Log(cipherText)
+	printAddress(&cipherText[0])
 
 	plainText, err = encryptor.Decrypt(cipherText, buf)
 	assert(err)
 	t.Log(plainText)
+	printAddress(&plainText[0])
 
 	encryptor = GetEncryptor(CipherAes256GCM, key)
 	copy(buf[12:], []byte(PlainText))
 	cipherText, err = encryptor.Encrypt(buf[encryptor.NonceSize():encryptor.NonceSize()+PlainTextSize], buf)
 	assert(err)
 	t.Log(cipherText)
+	printAddress(&cipherText[0])
 
 	plainText, err = encryptor.Decrypt(cipherText, buf)
 	assert(err)
 	t.Log(plainText)
+	printAddress(&plainText[0])
 
 	encryptor = GetEncryptor(CipherChaCha20poly1305, key)
 	copy(buf[12:], []byte(PlainText))
 	cipherText, err = encryptor.Encrypt(buf[encryptor.NonceSize():encryptor.NonceSize()+PlainTextSize], buf)
 	assert(err)
 	t.Log(cipherText)
+	printAddress(&cipherText[0])
 
 	plainText, err = encryptor.Decrypt(cipherText, buf)
 	assert(err)
 	t.Log(plainText)
+	printAddress(&plainText[0])
 
 }
