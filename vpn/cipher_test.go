@@ -13,32 +13,54 @@ func assert(err error) {
 	}
 }
 
+func printAddress(a interface{}) {
+	fmt.Printf("%p\n", a)
+}
+
 func TestMD5(t *testing.T) {
 	b := util.GetMD5([]byte("123456"))
 	fmt.Println(b)
 	t.Logf("%x", b)
 }
 
-func TestAes256GCM(t *testing.T) {
-	const key = "123456"
-	encryptor := GetEncryptor(CipherAes256GCM, []byte(key))
-	dst := make([]byte, 2048)
-	result, err := encryptor.Encrypt([]byte("HelloWorld"), dst)
-	assert(err)
-	t.Log(result)
-	result, err = encryptor.Decrypt(result, dst)
-	assert(err)
-	t.Log(result)
-}
+func TestCipher(t *testing.T) {
+	const PlainText = "HelloWorld"
+	const PlainTextSize = len(PlainText)
 
-func TestChaCha20Poly(t *testing.T) {
-	const key = "123456"
-	encryptor := GetEncryptor(CipherChaCha20poly1305, []byte(key))
-	dst := make([]byte, 2048)
-	result, err := encryptor.Encrypt([]byte("HelloWorld"), dst)
+	var key = []byte("key")
+	var buf = make([]byte, 0xFF)
+	var encryptor Encryptor
+	var cipherText, plainText []byte
+	var err error
+
+	encryptor = GetEncryptor(CipherPlain, key)
+	copy(buf, []byte(PlainText))
+	cipherText, err = encryptor.Encrypt(buf[:PlainTextSize], buf)
 	assert(err)
-	t.Log(result)
-	result, err = encryptor.Decrypt(result, dst)
+	t.Log(cipherText)
+
+	plainText, err = encryptor.Decrypt(cipherText, buf)
 	assert(err)
-	t.Log(result)
+	t.Log(plainText)
+
+	encryptor = GetEncryptor(CipherAes256GCM, key)
+	copy(buf[12:], []byte(PlainText))
+	cipherText, err = encryptor.Encrypt(buf[encryptor.NonceSize():encryptor.NonceSize()+PlainTextSize], buf)
+	assert(err)
+	t.Log(cipherText)
+
+	plainText, err = encryptor.Decrypt(cipherText, buf)
+	assert(err)
+	t.Log(plainText)
+
+	encryptor = GetEncryptor(CipherChaCha20poly1305, key)
+	copy(buf[12:], []byte(PlainText))
+	cipherText, err = encryptor.Encrypt(buf[encryptor.NonceSize():encryptor.NonceSize()+PlainTextSize], buf)
+	assert(err)
+	t.Log(cipherText)
+
+	plainText, err = encryptor.Decrypt(cipherText, buf)
+	assert(err)
+	t.Log(plainText)
+
 }
