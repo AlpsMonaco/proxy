@@ -161,3 +161,28 @@ func NewClient(serverconn net.Conn, remoteip string, remoteport int) *client {
 
 	return &client{serverconn}
 }
+
+type RemoteConnectionInfo struct {
+	va [256]byte
+}
+
+func (info *RemoteConnectionInfo) SetInfo(remoteip string, remoteport int) {
+	info.va[0] = byte(len(remoteip))
+	copy(info.va[1:], []byte(remoteip))
+
+	info.va[info.va[0]+1] = byte(remoteport & 0x00FF)
+	info.va[info.va[0]+2] = byte((remoteport & 0xFF00) >> 8)
+}
+
+func (info *RemoteConnectionInfo) GetInfo() (remoteip string, remoteport int) {
+	if info.va[0] == 0 {
+		return
+	}
+	remoteip = string(info.va[1 : info.va[0]+1])
+	remoteport = int(info.va[info.va[0]+1]) + int(info.va[info.va[0]+2])<<8
+	return
+}
+
+func (info *RemoteConnectionInfo) GetSize() int {
+	return 1 + 2 + int(info.va[0])
+}

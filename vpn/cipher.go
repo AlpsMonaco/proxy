@@ -8,6 +8,8 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
+type CipherEnum = byte
+
 const (
 	CipherPlain CipherEnum = iota
 	CipherAes256GCM

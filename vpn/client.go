@@ -1,32 +1,49 @@
 package vpn
 
 import (
-	"fmt"
 	"net"
+
+	"github.com/AlpsMonaco/proxy/util"
 )
 
 type Client struct {
-	IP          string
-	Port        int
-	Key         []byte
-	Cipher      CipherEnum
-	ErrorHandle func(err error)
-	encryptor   Encryptor
-	s           net.Conn
+	ServerIP   string
+	ServerPort int
+	Cipher     CipherEnum
+	Key        []byte
+	encryptor  Encryptor
 }
 
-func (c *Client) GetCipher() Encryptor {
-	return c.encryptor
-}
-
-func (c *Client) dial() (err error) {
-	c.s, err = net.Dial("tcp", fmt.Sprintf("%s:%d", c.IP, c.Port))
-	c.encryptor = GetEncryptor(c.Cipher, c.Key)
-	return err
-}
-
-func (c *Client) onError(err error) {
-	if c.ErrorHandle != nil {
-		c.ErrorHandle(err)
+func (c *Client) Connect() error {
+	var conn net.Conn
+	var err error
+	conn, err = net.Dial("tcp", util.SprintfAddress(c.ServerIP, c.ServerPort))
+	if err != nil {
+		return err
 	}
+
+	var allocator *util.Allocator = util.GetAlloctor(256)
+	// var n int
+	defer util.FreeAllocator(allocator)
+
+	(*HelloMessage)(allocator.GetPointer()).SetMessage(masquerade)
+	_, err = conn.Write((*HelloMessage)(allocator.GetPointer()).GetBytes())
+	if err != nil {
+		closeConn(conn)
+		return err
+	}
+
+	_, err = conn.Read(allocator.GetBytes())
+	if err != nil {
+		closeConn(conn)
+		return err
+	}
+
+	if (*Ack)(allocator.GetPointer()).GetCode() != Code_Success {
+		closeConn(conn)
+		return ErrServerRejected
+	}
+
+	c.encryptor = GetEncryptor(c.Cipher, c.Key)
+	return nil
 }
