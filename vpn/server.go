@@ -25,7 +25,6 @@ type Server struct {
 	IP        string
 	Port      int
 	Key       string
-	proxyConn ProxyConn
 	listener  net.Listener
 	encryptor Encryptor
 }

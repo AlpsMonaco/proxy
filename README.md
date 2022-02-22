@@ -19,4 +19,5 @@
 
 - Socks5 server complete. Usable.
 
-  
+
+look `proxy\cmd\vpn\main.go` for usage.  
