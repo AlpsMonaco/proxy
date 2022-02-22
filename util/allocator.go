@@ -50,3 +50,7 @@ func GetAlloctor(size int) *Allocator {
 func FreeAllocator(a *Allocator) {
 	allocatorPool.Put(a)
 }
+
+func NewAllocator(b []byte) *Allocator {
+	return &Allocator{b: b}
+}

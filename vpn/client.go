@@ -1,7 +1,9 @@
 package vpn
 
 import (
+	"bytes"
 	"net"
+	"unsafe"
 
 	"github.com/AlpsMonaco/proxy/util"
 )
@@ -9,41 +11,69 @@ import (
 type Client struct {
 	ServerIP   string
 	ServerPort int
-	Cipher     CipherEnum
-	Key        []byte
-	encryptor  Encryptor
+	Key        string
+	conn       net.Conn
+	proxyConn  ProxyConn
 }
 
-func (c *Client) Connect() error {
-	var conn net.Conn
-	var err error
-	conn, err = net.Dial("tcp", util.SprintfAddress(c.ServerIP, c.ServerPort))
+func (c *Client) Connect(remoteAddr string, remotePort int) (err error) {
+	c.conn, err = net.Dial("tcp", util.SprintfAddress(c.ServerIP, c.ServerPort))
 	if err != nil {
-		return err
+		return
 	}
-
-	var allocator *util.Allocator = util.GetAlloctor(256)
-	// var n int
-	defer util.FreeAllocator(allocator)
-
-	(*HelloMessage)(allocator.GetPointer()).SetMessage(masquerade)
-	_, err = conn.Write((*HelloMessage)(allocator.GetPointer()).GetBytes())
+	_, err = c.conn.Write(clientPrefixReqBytes)
 	if err != nil {
-		closeConn(conn)
-		return err
+		return
 	}
-
-	_, err = conn.Read(allocator.GetBytes())
+	var buffer []byte = make([]byte, allocMemSize)
+	n, err := c.conn.Read(buffer)
 	if err != nil {
-		closeConn(conn)
-		return err
+		return
 	}
-
-	if (*Ack)(allocator.GetPointer()).GetCode() != Code_Success {
-		closeConn(conn)
-		return ErrServerRejected
+	if !bytes.Equal(buffer[:n], serverPrefixRetBytes) {
+		err = ErrPrefixNotMacth
+		return
 	}
+	var encryptor Encryptor = &ChaCha20Poly1305{}
+	encryptor.Key([]byte(c.Key))
+	var packet Packet = &SizePacket{}
+	var recvbuffer []byte = make([]byte, allocMemSize)
+	c.proxyConn = CreateProxyConn(encryptor, packet, c.conn, buffer, recvbuffer)
+	return c.secureConnect(remoteAddr, remotePort)
+}
 
-	c.encryptor = GetEncryptor(c.Cipher, c.Key)
-	return nil
+func (c *Client) secureConnect(remoteAddr string, remotePort int) (err error) {
+	err = c.proxyConn.Send(versionBytes)
+	if err != nil {
+		return
+	}
+	// block here
+	var b []byte
+	b, err = c.proxyConn.Recv()
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(b, versionBytes) {
+		err = ErrVersionDismatch
+		return
+	}
+	ci := (*ConnectInfo)(unsafe.Pointer(&c.proxyConn.recvbuffer[0]))
+	ci.SetConnection(remoteAddr, uint16(remotePort))
+	err = c.proxyConn.Send(ci.info[:ci.Size()])
+	if err != nil {
+		return
+	}
+	b, err = c.proxyConn.Recv()
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(b, SuccessBytes) {
+		err = ErrServerRejected
+		return
+	}
+	return
+}
+
+func (c *Client) Proxy(conn net.Conn) {
+	BeginProxy(conn, &c.proxyConn)
 }

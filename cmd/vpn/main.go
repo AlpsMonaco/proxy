@@ -1,80 +1,48 @@
 package main
 
 import (
-	"errors"
-	"net"
+	"fmt"
 
 	"github.com/AlpsMonaco/proxy/socks5"
-	"github.com/AlpsMonaco/proxy/util"
 	"github.com/AlpsMonaco/proxy/vpn"
 )
 
-const ListenAddr = "127.0.0.1"
-const VpnPort = 7899
-const SocksPort = 7898
-
-var ErrorCatch = func(err error) {}
+const socks5Port int = 7899
+const addr string = "127.0.0.1"
+const vpnPort = 7179
+const key = "123"
 
 func main() {
-	// var server = vpn.Server{
-	// 	Addr:        ListenAddr,
-	// 	Port:        VpnPort,
-	// 	Key:         []byte{},
-	// 	Cipher:      0,
-	// 	ErrorHandle: ErrorCatch,
-	// }
-	go vpn.StartServer(ListenAddr, VpnPort)
-	// go func() {
-	// 	err := server.Listen()
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }()
+	go func() {
+		var vpnServer = vpn.Server{IP: addr, Port: vpnPort, Key: key}
+		err := vpnServer.Serve()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
-	// var client = vpn.Client{
-	// 	IP:          ListenAddr,
-	// 	Port:        VpnPort,
-	// 	Key:         []byte{},
-	// 	Cipher:      0,
-	// 	ErrorHandle: func(err error) { fmt.Println(err) },
-	// }
-	// err := client.Connect("www.baidu.com", 80)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	s := socks5.Server{
+		Address: addr,
+		Port:    socks5Port,
+		OnError: func(err error) {
+			fmt.Println(err)
+		},
 
-	// c := client.Conn()
-	// msg := "GET / HTTP/1.1\r\nHost: www.baidu.com\r\n\r\n"
-	// var p = stream.NewPacket()
-	// p.WriteStream(c, []byte(msg))
-
-	// err = p.Next(c)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println(string(p.Data()))
-
-	// time.Sleep(100 * time.Second)
-
-	var sockserver = socks5.Server{
-		Address: ListenAddr,
-		Port:    SocksPort,
-		OnError: ErrorCatch,
-		OnConnectRemote: func(ip string, port int) (socks5.ProxyConn, error) {
-			serverconn, err := net.Dial("tcp", util.SprintfAddress(ListenAddr, VpnPort))
+		OnConnectRemote: func(host string, port int) (socks5.ProxyConn, error) {
+			var c vpn.Client = vpn.Client{
+				ServerIP:   addr,
+				ServerPort: vpnPort,
+				Key:        key,
+			}
+			err := c.Connect(host, port)
 			if err != nil {
 				return nil, err
 			}
-			ins := vpn.NewClient(serverconn, ip, port)
-			if ins == nil {
-				return nil, errors.New("connect failed")
-			}
-			return ins, nil
+			return &c, nil
 		},
 	}
 
-	if err := sockserver.Listen(); err != nil {
+	if err := s.Listen(); err != nil {
 		panic(err)
 	}
-
 }

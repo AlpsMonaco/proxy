@@ -1,46 +1,42 @@
 package vpn
 
-const version byte = 0x01
+import "golang.org/x/crypto/chacha20poly1305"
 
-type HelloMessage struct {
-	msgSize byte
-	msg     [255]byte
+const clientPrefixReq = "GET /api/v1/portal HTTP1.1\r\nHost: www.zhihu.com\r\n\r\n"
+const serverPrefixRet = "HTTP/1.1 200 OK\r\nContent-Type: text/html;api=v1\r\n\r\n"
+const version = "20220221"
+const SUCCESS = "1"
+const FAILED = "0"
+
+const nonceSize = chacha20poly1305.NonceSize
+const allocMemSize = PacketSize + nonceSize
+const remoteBufferSize = PacketSize - 256
+
+var clientPrefixReqBytes = []byte(clientPrefixReq)
+var serverPrefixRetBytes = []byte(serverPrefixRet)
+var versionBytes = []byte(version)
+var SuccessBytes = []byte(SUCCESS)
+var FailedBytes = []byte(FAILED)
+
+type ConnectInfo struct {
+	info [256]byte
 }
 
-func (hm *HelloMessage) SetMessage(s string) {
-	hm.SetBytes([]byte(s))
+func (ci *ConnectInfo) SetConnection(addr string, port uint16) {
+	var totalSize byte = byte(len(addr)) + 3
+	ci.info[0] = totalSize
+	copy(ci.info[1:], []byte(addr))
+	ci.info[totalSize-1] = byte(port & 0x00FF)
+	ci.info[totalSize-2] = byte(port & 0xFF00 >> 8)
 }
 
-func (hm *HelloMessage) SetBytes(b []byte) {
-	if len(b) > 255 {
-		hm.msgSize = 255
-	} else {
-		hm.msgSize = byte(len(b))
-	}
-	copy(hm.msg[:], b)
+func (ci *ConnectInfo) GetConnection() (addr string, port int) {
+	addr = string(ci.info[1 : ci.info[0]-2])
+	port = int(ci.info[ci.info[0]-1]) + int(ci.info[ci.info[0]-2])<<8
+	return
 }
 
-func (hm *HelloMessage) GetBytes() []byte {
-	return hm.msg[:hm.msgSize]
-}
-
-func (hm *HelloMessage) GetMessage() string {
-	return string(hm.GetBytes())
-}
-
-const (
-	Code_Error byte = iota
-	Code_Success
-)
-
-type Ack struct {
-	code byte
-}
-
-func (a *Ack) SetCode(code byte) {
-	a.code = code
-}
-
-func (a *Ack) GetCode() byte {
-	return a.code
+func (ci *ConnectInfo) Size() (size int) {
+	size = int(ci.info[0])
+	return
 }
