@@ -20,8 +20,8 @@
 - Socks5 server complete. Usable.
 
 ### proxy  
-proxy c/s production version.  
-wokr properly.  
+a c/s architech proxy tool over tcp.  
+work properly.  
 look `proxy\cmd\vpn\main.go` for usage.  
 
 香港阿里云服务器测试通过，youtube流畅看4k，速度取决于服务器世纪带宽，因为协议是自己新写的加上go的协程tcp为io非阻塞式，目前比较稳定。  
