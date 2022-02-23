@@ -20,7 +20,7 @@
 - Socks5 server complete. Usable.
 
 ### proxy  
-a c/s architech proxy tool over tcp.  
+a c/s architecture proxy tool over tcp.  
 work properly.  
 look `proxy\cmd\vpn\main.go` for usage.  
 
